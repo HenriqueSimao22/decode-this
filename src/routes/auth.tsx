@@ -25,6 +25,7 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [nome, setNome] = useState("");
+  const [codigo, setCodigo] = useState("");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -44,21 +45,42 @@ function AuthPage() {
 
   async function cadastrar(e: React.FormEvent) {
     e.preventDefault();
+    if (!codigo.trim()) {
+      return toast.error("Informe seu código de acesso.", {
+        description: "O cadastro é fechado — solicite um código ao administrador.",
+      });
+    }
     setLoading(true);
     const { error } = await supabase.auth.signUp({
       email,
       password: senha,
       options: {
         emailRedirectTo: window.location.origin,
-        data: { nome },
+        data: { nome, codigo_acesso: codigo.trim().toUpperCase() },
       },
     });
     setLoading(false);
-    if (error) return toast.error("Não conseguimos cadastrar", { description: error.message });
+    if (error) {
+      const msg = error.message.includes("Código")
+        ? error.message
+        : /invalid|inválido|expirad/i.test(error.message)
+          ? "Código de acesso inválido ou expirado."
+          : error.message;
+      return toast.error("Não conseguimos cadastrar", { description: msg });
+    }
     toast.success("Conta criada!", { description: "Verifique seu e-mail para confirmar o cadastro." });
   }
 
   async function google() {
+    if (!codigo.trim()) {
+      return toast.error("Informe seu código de acesso antes de continuar com o Google.", {
+        description: "Novos cadastros exigem código. Já tem conta? O código é ignorado no login.",
+      });
+    }
+    // Guarda o código para o primeiro cadastro Google (não afeta contas já existentes)
+    try {
+      sessionStorage.setItem("codigo_acesso_pendente", codigo.trim().toUpperCase());
+    } catch {}
     const res = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
     if (res.error) toast.error("Erro no login com Google", { description: String(res.error) });
   }
@@ -123,6 +145,19 @@ function AuthPage() {
                   <div className="space-y-1.5">
                     <Label htmlFor="senha2">Senha</Label>
                     <Input id="senha2" type="password" required minLength={6} value={senha} onChange={(e) => setSenha(e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="codigo">Código de acesso</Label>
+                    <Input
+                      id="codigo"
+                      required
+                      placeholder="Ex.: LIVRO-ABC123"
+                      value={codigo}
+                      onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Cadastro fechado. Solicite um código ao administrador.
+                    </p>
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? "Criando..." : "Criar conta"}
