@@ -150,7 +150,7 @@ function TransacoesPage() {
                     open: true,
                     inicial: {
                       id: t.id,
-                      tipo: t.tipo,
+                      tipo: t.tipo as "receita" | "despesa",
                       descricao: t.descricao,
                       valor: Number(t.valor),
                       categoria_id: t.categoria_id,
