@@ -10,10 +10,11 @@ export const getPerfil = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("profiles")
-      .select("id, nome, tema")
+      .select("id, nome, tema, bloqueado")
       .eq("id", context.userId)
       .maybeSingle();
     if (error) throw new Error(error.message);
+    if (data?.bloqueado) throw new Error("Conta bloqueada. Contate o administrador.");
     return data;
   });
 

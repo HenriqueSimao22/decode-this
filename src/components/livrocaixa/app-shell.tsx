@@ -4,13 +4,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getPerfil } from "@/lib/livrocaixa.functions";
-import { LogOut, LayoutDashboard, Wallet, Settings, Moon, Sun } from "lucide-react";
+import { souAdmin } from "@/lib/admin.functions";
+import { LogOut, LayoutDashboard, Wallet, Settings, Moon, Sun, Shield } from "lucide-react";
+import { toast } from "sonner";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const perfilFn = useServerFn(getPerfil);
-  const { data: perfil } = useQuery({ queryKey: ["perfil"], queryFn: () => perfilFn() });
+  const { data: perfil, error: perfilError } = useQuery({ queryKey: ["perfil"], queryFn: () => perfilFn(), retry: false });
+  const souAdminFn = useServerFn(souAdmin);
+  const { data: perm } = useQuery({ queryKey: ["souAdmin"], queryFn: () => souAdminFn(), retry: false });
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
@@ -18,6 +22,13 @@ export function AppShell({ children }: { children: ReactNode }) {
     setDark(isDark);
     document.documentElement.classList.toggle("dark", isDark);
   }, [perfil?.tema]);
+
+  useEffect(() => {
+    if (perfilError && /bloqueada/i.test(String((perfilError as Error).message))) {
+      toast.error("Sua conta está bloqueada.", { description: "Contate o administrador." });
+      supabase.auth.signOut().then(() => navigate({ to: "/auth", replace: true }));
+    }
+  }, [perfilError, navigate]);
 
   async function sair() {
     await supabase.auth.signOut();
@@ -30,11 +41,14 @@ export function AppShell({ children }: { children: ReactNode }) {
     document.documentElement.classList.toggle("dark", next);
   }
 
-  const links = [
+  const baseLinks = [
     { to: "/", label: "Visão geral", icon: LayoutDashboard },
     { to: "/transacoes", label: "Transações", icon: Wallet },
     { to: "/configuracoes", label: "Configurações", icon: Settings },
   ] as const;
+  const links = perm?.admin
+    ? [...baseLinks, { to: "/admin", label: "Administração", icon: Shield } as const]
+    : baseLinks;
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
