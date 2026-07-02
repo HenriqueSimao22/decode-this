@@ -1,8 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { resumoDashboard } from "@/lib/livrocaixa.functions";
+import { resumoContas } from "@/lib/contas.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Bar, Doughnut } from "react-chartjs-2";
@@ -32,6 +33,11 @@ function Dashboard() {
   const { data: rows } = useQuery({
     queryKey: ["resumo", ano],
     queryFn: () => resumoFn({ data: { ano } }),
+  });
+  const resumoContasFn = useServerFn(resumoContas);
+  const { data: contasResumo } = useQuery({
+    queryKey: ["resumoContas"],
+    queryFn: () => resumoContasFn(),
   });
 
   const mesAtual = new Date().getMonth();
@@ -128,6 +134,31 @@ function Dashboard() {
           + Nova despesa
         </Button>
       </div>
+
+      {contasResumo && (contasResumo.atrasadas > 0 || contasResumo.proximas > 0) && (
+        <Card className="p-5 flex flex-wrap items-center gap-6">
+          {contasResumo.atrasadas > 0 && (
+            <div>
+              <p className="text-xs uppercase tracking-wide text-[color:var(--color-despesa)]">
+                {contasResumo.atrasadas} conta{contasResumo.atrasadas > 1 ? "s" : ""} atrasada{contasResumo.atrasadas > 1 ? "s" : ""}
+              </p>
+              <p className="font-mono text-lg font-bold text-[color:var(--color-despesa)]">
+                {formatBRL(Math.abs(contasResumo.atrasadasValor))}
+              </p>
+            </div>
+          )}
+          {contasResumo.proximas > 0 && (
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                {contasResumo.proximas} conta{contasResumo.proximas > 1 ? "s" : ""} próxima{contasResumo.proximas > 1 ? "s" : ""}
+              </p>
+              <p className="font-mono text-lg font-bold">{formatBRL(Math.abs(contasResumo.proximasValor))}</p>
+            </div>
+          )}
+          <div className="grow" />
+          <Link to="/contas" className="text-sm underline underline-offset-4">Ver contas →</Link>
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-5">
