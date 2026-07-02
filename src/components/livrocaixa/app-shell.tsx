@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getPerfil } from "@/lib/livrocaixa.functions";
 import { souAdmin } from "@/lib/admin.functions";
-import { LogOut, LayoutDashboard, Wallet, Settings, Moon, Sun, Shield } from "lucide-react";
+import { LogOut, LayoutDashboard, Wallet, Settings, Moon, Sun, Shield, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -44,6 +44,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const baseLinks = [
     { to: "/", label: "Visão geral", icon: LayoutDashboard },
     { to: "/transacoes", label: "Transações", icon: Wallet },
+    { to: "/contas", label: "Contas", icon: CalendarClock },
     { to: "/configuracoes", label: "Configurações", icon: Settings },
   ] as const;
   const links = perm?.admin

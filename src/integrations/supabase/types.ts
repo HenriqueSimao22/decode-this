@@ -77,6 +77,72 @@ export type Database = {
         }
         Relationships: []
       }
+      contas: {
+        Row: {
+          categoria_id: string | null
+          created_at: string
+          descricao: string
+          grupo_recorrencia: string | null
+          id: string
+          observacao: string | null
+          pago_em: string | null
+          recorrencia: string
+          tipo: string
+          transacao_id: string | null
+          updated_at: string
+          user_id: string
+          valor: number
+          vencimento: string
+        }
+        Insert: {
+          categoria_id?: string | null
+          created_at?: string
+          descricao: string
+          grupo_recorrencia?: string | null
+          id?: string
+          observacao?: string | null
+          pago_em?: string | null
+          recorrencia?: string
+          tipo: string
+          transacao_id?: string | null
+          updated_at?: string
+          user_id: string
+          valor: number
+          vencimento: string
+        }
+        Update: {
+          categoria_id?: string | null
+          created_at?: string
+          descricao?: string
+          grupo_recorrencia?: string | null
+          id?: string
+          observacao?: string | null
+          pago_em?: string | null
+          recorrencia?: string
+          tipo?: string
+          transacao_id?: string | null
+          updated_at?: string
+          user_id?: string
+          valor?: number
+          vencimento?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contas_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contas_transacao_id_fkey"
+            columns: ["transacao_id"]
+            isOneToOne: false
+            referencedRelation: "transacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           bloqueado: boolean
