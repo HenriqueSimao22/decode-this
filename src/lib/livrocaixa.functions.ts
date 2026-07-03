@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { getActiveWorkspaceId } from "./workspace-helper";
 
 const TipoSchema = z.enum(["receita", "despesa"]);
 
@@ -10,7 +11,7 @@ export const getPerfil = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("profiles")
-      .select("id, nome, tema, bloqueado")
+      .select("id, nome, tema, bloqueado, workspace_ativo")
       .eq("id", context.userId)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -39,9 +40,11 @@ export const atualizarPerfil = createServerFn({ method: "POST" })
 export const listarCategorias = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
     const { data, error } = await context.supabase
       .from("categorias")
       .select("id, nome, tipo, cor")
+      .eq("workspace_id", wid)
       .order("tipo")
       .order("nome");
     if (error) throw new Error(error.message);
@@ -58,9 +61,10 @@ export const criarCategoria = createServerFn({ method: "POST" })
     }).parse(d),
   )
   .handler(async ({ data, context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
     const { data: row, error } = await context.supabase
       .from("categorias")
-      .insert({ ...data, user_id: context.userId })
+      .insert({ ...data, user_id: context.userId, workspace_id: wid, criado_por: context.userId })
       .select("id, nome, tipo, cor")
       .single();
     if (error) throw new Error(error.message);
@@ -86,12 +90,15 @@ export const listarTransacoes = createServerFn({ method: "POST" })
       tipo: TipoSchema.optional(),
       categoriaId: z.string().uuid().nullable().optional(),
       busca: z.string().max(100).optional(),
+      criadoPor: z.string().uuid().optional(),
     }).parse(d ?? {}),
   )
   .handler(async ({ data, context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
     let q = context.supabase
       .from("transacoes")
-      .select("id, tipo, descricao, valor, categoria_id, data, observacao, categorias(nome, cor)")
+      .select("id, tipo, descricao, valor, categoria_id, data, observacao, criado_por, categorias(nome, cor)")
+      .eq("workspace_id", wid)
       .order("data", { ascending: false })
       .order("created_at", { ascending: false });
     if (data.inicio) q = q.gte("data", data.inicio);
@@ -99,6 +106,7 @@ export const listarTransacoes = createServerFn({ method: "POST" })
     if (data.tipo) q = q.eq("tipo", data.tipo);
     if (data.categoriaId) q = q.eq("categoria_id", data.categoriaId);
     if (data.busca) q = q.ilike("descricao", `%${data.busca}%`);
+    if (data.criadoPor) q = q.eq("criado_por", data.criadoPor);
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return rows ?? [];
@@ -108,9 +116,10 @@ export const criarTransacao = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => TransacaoInput.parse(d))
   .handler(async ({ data, context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
     const { error } = await context.supabase
       .from("transacoes")
-      .insert({ ...data, user_id: context.userId });
+      .insert({ ...data, user_id: context.userId, workspace_id: wid, criado_por: context.userId });
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -149,11 +158,13 @@ export const resumoDashboard = createServerFn({ method: "POST" })
     z.object({ ano: z.number().int().min(2000).max(2100) }).parse(d ?? { ano: new Date().getFullYear() }),
   )
   .handler(async ({ data, context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
     const ini = `${data.ano}-01-01`;
     const fim = `${data.ano}-12-31`;
     const { data: rows, error } = await context.supabase
       .from("transacoes")
       .select("tipo, valor, data, categoria_id, categorias(nome, cor)")
+      .eq("workspace_id", wid)
       .gte("data", ini)
       .lte("data", fim);
     if (error) throw new Error(error.message);
@@ -193,10 +204,12 @@ export const importarBackup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => BackupSchema.parse(d))
   .handler(async ({ data, context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
     // Garantir categorias
     const { data: existentes } = await context.supabase
       .from("categorias")
-      .select("id, nome, tipo");
+      .select("id, nome, tipo")
+      .eq("workspace_id", wid);
     const map = new Map<string, string>();
     for (const c of existentes ?? []) map.set(`${c.tipo}::${c.nome.toLowerCase()}`, c.id);
 
@@ -214,7 +227,7 @@ export const importarBackup = createServerFn({ method: "POST" })
     if (paraCriar.length) {
       const { data: novas, error } = await context.supabase
         .from("categorias")
-        .insert(paraCriar.map((c) => ({ ...c, user_id: context.userId })))
+        .insert(paraCriar.map((c) => ({ ...c, user_id: context.userId, workspace_id: wid, criado_por: context.userId })))
         .select("id, nome, tipo");
       if (error) throw new Error("Erro ao criar categorias: " + error.message);
       for (const c of novas ?? []) map.set(`${c.tipo}::${c.nome.toLowerCase()}`, c.id);
@@ -224,6 +237,8 @@ export const importarBackup = createServerFn({ method: "POST" })
     // Inserir transações em blocos
     const linhas = data.transacoes.map((t) => ({
       user_id: context.userId,
+      workspace_id: wid,
+      criado_por: context.userId,
       tipo: t.tipo,
       descricao: t.descricao,
       valor: t.valor,
@@ -248,11 +263,13 @@ export const importarBackup = createServerFn({ method: "POST" })
 export const exportarBackup = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
     const [{ data: transacoes }, { data: categorias }] = await Promise.all([
       context.supabase
         .from("transacoes")
-        .select("tipo, descricao, valor, data, observacao, categorias(nome)"),
-      context.supabase.from("categorias").select("nome, tipo, cor"),
+        .select("tipo, descricao, valor, data, observacao, categorias(nome)")
+        .eq("workspace_id", wid),
+      context.supabase.from("categorias").select("nome, tipo, cor").eq("workspace_id", wid),
     ]);
     return {
       exportadoEm: new Date().toISOString(),

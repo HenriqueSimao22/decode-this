@@ -1,120 +1,55 @@
+## O que vou fazer
 
-## Objetivo
+### 1. Definir sua senha
+Sua conta `henriquesimao.eng@gmail.com` foi criada via Google e não tinha senha. Vou definir `Jogador22` no seu registro existente — você continua entrando pelo Google **e** pelo e-mail/senha.
 
-Transformar o `controle-financeiro.html` (app local que guarda tudo no `localStorage`) em uma **plataforma online multiusuário**, onde cada pessoa cria uma conta e tem seu próprio livro caixa privado no banco de dados. Vamos entregar em fases; nesta primeira o foco é o MVP.
+### 2. Conta conjunta (Workspaces)
 
-## Fase 1 — MVP (esta entrega)
+Modelo novo: todo lançamento pertence a um **workspace** (não mais a um usuário). Cada workspace é `individual` (só você) ou `conjunta` (você + convidados). Cada registro guarda **quem lançou** para aparecer com nome e avatar de cor.
 
-Inclui: autenticação, dashboard "Visão geral", módulo de "Receitas e despesas" e importação do backup JSON gerado pelo app antigo. Categorias, tema claro/escuro e a identidade visual do original (fontes Fraunces/Source Sans, tipografia de "recibo", paleta bege/verde/vermelho) são mantidas.
+**Regras principais:**
+- Todo usuário ganha automaticamente 1 workspace individual ao se cadastrar.
+- Qualquer usuário pode criar workspaces conjuntos adicionais e convidar por e-mail.
+- Ao entrar num workspace conjunto, **os lançamentos antigos do individual ficam separados** (não migram automaticamente). Você alterna pelo seletor no topo.
+- Convite: dono gera link com token → outro usuário aceita entrando na conta dele.
+- Cada membro tem uma cor definida (paleta pré-definida ou personalizada).
 
-### Telas
-1. **/auth** — Cadastro/login por e-mail e senha + botão "Entrar com Google". Recuperação de senha.
-2. **/** (protegida) — **Visão geral**: cards de saldo do mês, total de receitas e despesas, gráfico de barras (receitas x despesas por mês) e gráfico de pizza (despesas por categoria). Botões rápidos "+ Receita" / "+ Despesa".
-3. **/transacoes** — Lista de receitas e despesas com navegação por mês, busca, filtros (tipo/categoria) e CRUD completo em modal.
-4. **/configuracoes** — Perfil (nome), tema claro/escuro, **Importar backup** (JSON do app antigo) e **Exportar backup** (JSON), sair da conta.
+### 3. Banco de dados
 
-### Fases futuras (não entram agora)
-- Contas a pagar/receber
-- Cartões de crédito e faturas
-- Metas de economia
-- Investimentos
+**Novas tabelas:**
+- `workspaces` — id, nome, tipo (individual/conjunta), criado_por
+- `workspace_members` — workspace_id, user_id, cor, papel (dono/membro), entrou_em
+- `workspace_invites` — workspace_id, email_convidado, token, status, expira_em
 
-Cada uma vira uma nova aba/rota reaproveitando o mesmo padrão de dados.
+**Colunas novas em existentes:**
+- `transacoes`, `contas`, `categorias` → `workspace_id` (obrigatório) e `criado_por` (quem lançou)
+- Migração: cria 1 workspace individual pra cada usuário existente, aponta todos os registros dele pra esse workspace.
 
----
+**RLS:** só membros ativos do workspace enxergam/editam. Convites só o dono gerencia.
 
-## Detalhes técnicos
+### 4. Backend (server functions)
 
-### Stack
-- Frontend: TanStack Start (já configurado) + Tailwind + shadcn/ui + Chart.js (react-chartjs-2).
-- Backend: **Lovable Cloud** (PostgreSQL gerenciado, gratuito no plano inicial) — habilitado via `supabase--enable`.
-- Auth: Lovable Cloud Auth com **e-mail/senha + Google** (`supabase--configure_social_auth` com `google`).
-- Server functions: `createServerFn` com `requireSupabaseAuth` para todo CRUD; RLS garante isolamento por usuário.
+- `workspaces.functions.ts`: listar meus workspaces, criar conjunto, convidar por e-mail, aceitar convite, listar membros, mudar cor, remover membro (só dono), sair do workspace, definir workspace ativo (guardado no `profiles`).
+- Ajustar `livrocaixa.functions.ts` e `contas.functions.ts` para filtrar por `workspace_id` ativo (guardado num campo `workspace_ativo` em `profiles`) e gravar `criado_por = userId`.
+- Categorias passam a ser por workspace (workspaces novos ganham as 13 categorias padrão via seed).
 
-### Schema (migration inicial)
-```sql
--- profiles: dados do usuário além do auth.users
-create table public.profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-  nome text,
-  tema text not null default 'claro',
-  created_at timestamptz not null default now()
-);
+### 5. Frontend
 
--- categorias por usuário (com defaults semeados no signup)
-create table public.categorias (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  nome text not null,
-  tipo text not null check (tipo in ('receita','despesa')),
-  cor text,
-  created_at timestamptz not null default now()
-);
+- **Seletor de workspace no topbar** (dropdown com nome + avatares dos membros; opção "Criar novo").
+- **Página `/workspace`** — configurações: renomear, gerenciar membros (nome, cor, remover), gerar convite (link copiável), listar convites pendentes.
+- **Página `/convite/$token`** — aceitar convite (precisa estar logado).
+- **Nos lançamentos e contas**: mostrar avatar circular colorido + primeiro nome de quem lançou, ao lado do valor. Filtro adicional "Por pessoa" quando o workspace tem mais de 1 membro.
+- **Cadastro atualizado**: primeira pergunta após signup → "Você quer usar sozinho ou vai compartilhar com alguém?" (só sugere criar conjunto; individual já existe).
 
--- transações
-create table public.transacoes (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  tipo text not null check (tipo in ('receita','despesa')),
-  descricao text not null,
-  valor numeric(14,2) not null check (valor >= 0),
-  categoria_id uuid references public.categorias(id) on delete set null,
-  data date not null,
-  observacao text,
-  created_at timestamptz not null default now()
-);
-create index on public.transacoes (user_id, data desc);
-```
-- GRANTs para `authenticated`/`service_role` em todas as tabelas.
-- RLS habilitada + políticas `auth.uid() = user_id` para SELECT/INSERT/UPDATE/DELETE.
-- Trigger `on_auth_user_created` que cria `profiles` e semeia categorias padrão (Alimentação, Moradia, Transporte, Salário, etc.) no cadastro.
-
-### Server functions (`src/lib/*.functions.ts`)
-- `listarTransacoes({ mes?, tipo?, categoriaId?, busca? })`
-- `criarTransacao`, `atualizarTransacao`, `excluirTransacao`
-- `resumoMensal({ ano })` → agregações para os gráficos (barras e pizza)
-- `listarCategorias`, `criarCategoria`
-- `importarBackup({ payload })` → parseia o JSON do app antigo (chaves `transacoes`, `categorias`, `perfil`) e faz insert em lote validado com Zod
-- `exportarBackup()` → devolve JSON compatível com o formato original
-
-### Roteamento
-- `src/routes/auth.tsx` (público, com login + Google).
-- `src/routes/_authenticated/route.tsx` (gate gerenciado — apenas criado se ainda não existir).
-- `src/routes/_authenticated/index.tsx` (visão geral).
-- `src/routes/_authenticated/transacoes.tsx`.
-- `src/routes/_authenticated/configuracoes.tsx`.
-
-### Padrão de dados
-Loader chama `queryClient.ensureQueryData(queryOptions)`; componente usa `useSuspenseQuery`. Mutações via `useMutation` + `queryClient.invalidateQueries`. Toasts com `sonner`.
-
-### Design
-Reaproveitar a identidade do HTML original:
-- Fontes Google: Fraunces (títulos), Source Sans 3 (texto), Space Mono (valores monetários) — carregadas via `<link>` em `__root.tsx`.
-- Tokens semânticos em `src/styles.css`: bege papel `oklch(...)`, verde receita, vermelho despesa, dourado destaque; variantes claro/escuro.
-- Componentes shadcn (Button, Dialog, Input, Select, Card, Tabs) customizados via CSS vars.
-
-### Importação do backup
-- Botão em Configurações abre `<input type="file" accept="application/json">`.
-- Cliente lê arquivo, envia payload para `importarBackup`.
-- Server function valida com Zod, mapeia categorias por nome (cria as que faltarem) e insere transações. Ignora silenciosamente registros duplicados por `(user_id, data, descricao, valor)`.
-- Retorna resumo: X transações importadas, Y categorias criadas.
-
-### Segurança
-- RLS em todas as tabelas + policies escritas com `auth.uid()`.
-- Validação Zod em toda entrada (client e server).
-- Nenhum `service_role` no client; nenhum segredo em código.
-- Google OAuth via helper `lovable.auth.signInWithOAuth("google", ...)`.
-
-### SEO / metadata
-- Título: "Livro Caixa — Controle Financeiro Online".
-- Descrição PT-BR (< 160 chars) em `__root.tsx`; `og:title`, `og:description`, `twitter:card` correspondentes.
+### 6. Fora do escopo desta fase
+- Notificação por e-mail do convite (por enquanto o dono copia o link e manda). Podemos adicionar e-mail transacional depois.
+- Divisão de despesas / quem-deve-a-quem: por enquanto tudo é do casal, sem cálculo de acerto.
+- Migração dos dados antigos: mantidos no individual conforme você decidiu.
 
 ---
 
-## O que você precisa fazer
-Depois que eu implementar:
-1. Confirmar o cadastro por e-mail (Cloud envia link de confirmação).
-2. Se quiser Google já ativo em produção: eu configuro o provider automaticamente; nenhuma ação sua é necessária para o preview.
-3. Testar importando um backup JSON que você exportar do app HTML atual.
-
-Quando quiser, seguimos com a Fase 2 (Contas a pagar/receber → Cartões → Metas → Investimentos).
+**Se aprovar, executo nesta ordem:**
+1. Migração SQL (senha + tabelas + RLS + backfill)
+2. Server functions de workspace + ajustes nas existentes
+3. Seletor + página de workspace + página de convite
+4. Autoria visual nos lançamentos e contas

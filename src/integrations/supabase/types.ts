@@ -54,33 +54,48 @@ export type Database = {
         Row: {
           cor: string | null
           created_at: string
+          criado_por: string | null
           id: string
           nome: string
           tipo: string
           user_id: string
+          workspace_id: string
         }
         Insert: {
           cor?: string | null
           created_at?: string
+          criado_por?: string | null
           id?: string
           nome: string
           tipo: string
           user_id: string
+          workspace_id: string
         }
         Update: {
           cor?: string | null
           created_at?: string
+          criado_por?: string | null
           id?: string
           nome?: string
           tipo?: string
           user_id?: string
+          workspace_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "categorias_workspace_fk"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       contas: {
         Row: {
           categoria_id: string | null
           created_at: string
+          criado_por: string | null
           descricao: string
           grupo_recorrencia: string | null
           id: string
@@ -93,10 +108,12 @@ export type Database = {
           user_id: string
           valor: number
           vencimento: string
+          workspace_id: string
         }
         Insert: {
           categoria_id?: string | null
           created_at?: string
+          criado_por?: string | null
           descricao: string
           grupo_recorrencia?: string | null
           id?: string
@@ -109,10 +126,12 @@ export type Database = {
           user_id: string
           valor: number
           vencimento: string
+          workspace_id: string
         }
         Update: {
           categoria_id?: string | null
           created_at?: string
+          criado_por?: string | null
           descricao?: string
           grupo_recorrencia?: string | null
           id?: string
@@ -125,6 +144,7 @@ export type Database = {
           user_id?: string
           valor?: number
           vencimento?: string
+          workspace_id?: string
         }
         Relationships: [
           {
@@ -141,6 +161,13 @@ export type Database = {
             referencedRelation: "transacoes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "contas_workspace_fk"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
         ]
       }
       profiles: {
@@ -153,6 +180,7 @@ export type Database = {
           nome: string | null
           tema: string
           updated_at: string
+          workspace_ativo: string | null
         }
         Insert: {
           bloqueado?: boolean
@@ -163,6 +191,7 @@ export type Database = {
           nome?: string | null
           tema?: string
           updated_at?: string
+          workspace_ativo?: string | null
         }
         Update: {
           bloqueado?: boolean
@@ -173,6 +202,7 @@ export type Database = {
           nome?: string | null
           tema?: string
           updated_at?: string
+          workspace_ativo?: string | null
         }
         Relationships: []
       }
@@ -180,6 +210,7 @@ export type Database = {
         Row: {
           categoria_id: string | null
           created_at: string
+          criado_por: string | null
           data: string
           descricao: string
           id: string
@@ -188,10 +219,12 @@ export type Database = {
           updated_at: string
           user_id: string
           valor: number
+          workspace_id: string
         }
         Insert: {
           categoria_id?: string | null
           created_at?: string
+          criado_por?: string | null
           data: string
           descricao: string
           id?: string
@@ -200,10 +233,12 @@ export type Database = {
           updated_at?: string
           user_id: string
           valor: number
+          workspace_id: string
         }
         Update: {
           categoria_id?: string | null
           created_at?: string
+          criado_por?: string | null
           data?: string
           descricao?: string
           id?: string
@@ -212,6 +247,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           valor?: number
+          workspace_id?: string
         }
         Relationships: [
           {
@@ -219,6 +255,13 @@ export type Database = {
             columns: ["categoria_id"]
             isOneToOne: false
             referencedRelation: "categorias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transacoes_workspace_fk"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -244,6 +287,112 @@ export type Database = {
         }
         Relationships: []
       }
+      workspace_invites: {
+        Row: {
+          aceito_em: string | null
+          aceito_por: string | null
+          created_at: string
+          criado_por: string
+          email_convidado: string
+          expira_em: string
+          id: string
+          status: string
+          token: string
+          workspace_id: string
+        }
+        Insert: {
+          aceito_em?: string | null
+          aceito_por?: string | null
+          created_at?: string
+          criado_por: string
+          email_convidado: string
+          expira_em?: string
+          id?: string
+          status?: string
+          token?: string
+          workspace_id: string
+        }
+        Update: {
+          aceito_em?: string | null
+          aceito_por?: string | null
+          created_at?: string
+          criado_por?: string
+          email_convidado?: string
+          expira_em?: string
+          id?: string
+          status?: string
+          token?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_invites_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_members: {
+        Row: {
+          cor: string
+          entrou_em: string
+          papel: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          cor?: string
+          entrou_em?: string
+          papel?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          cor?: string
+          entrou_em?: string
+          papel?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_members_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspaces: {
+        Row: {
+          created_at: string
+          criado_por: string
+          id: string
+          nome: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          criado_por: string
+          id?: string
+          nome: string
+          tipo?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string
+          id?: string
+          nome?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -255,6 +404,18 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      is_workspace_member: {
+        Args: { _user_id: string; _workspace_id: string }
+        Returns: boolean
+      }
+      is_workspace_owner: {
+        Args: { _user_id: string; _workspace_id: string }
+        Returns: boolean
+      }
+      seed_workspace_categories: {
+        Args: { _user_id: string; _workspace_id: string }
+        Returns: undefined
       }
     }
     Enums: {
