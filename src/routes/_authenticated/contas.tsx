@@ -21,6 +21,10 @@ export const Route = createFileRoute("/_authenticated/contas")({
 });
 
 function ContasPage() {
+  const [ref, setRef] = useState(() => {
+    const d = new Date();
+    return { ano: d.getFullYear(), mes: d.getMonth() };
+  });
   const [tipo, setTipo] = useState<"todos" | "pagar" | "receber">("todos");
   const [status, setStatus] = useState<"todas" | "pendentes" | "pagas" | "atrasadas">("pendentes");
   const [modal, setModal] = useState<{ open: boolean; inicial?: ContaEdit; tipoDefault?: "pagar" | "receber" }>({ open: false });
@@ -31,9 +35,13 @@ function ContasPage() {
   const desmarcarFn = useServerFn(desmarcarPago);
   const qc = useQueryClient();
 
+  const inicio = `${ref.ano}-${String(ref.mes + 1).padStart(2, "0")}-01`;
+  const fimDate = new Date(ref.ano, ref.mes + 1, 0);
+  const fim = `${ref.ano}-${String(ref.mes + 1).padStart(2, "0")}-${String(fimDate.getDate()).padStart(2, "0")}`;
+
   const { data: rows } = useQuery({
-    queryKey: ["contas", tipo, status],
-    queryFn: () => listFn({ data: { tipo: tipo === "todos" ? undefined : tipo, status } }),
+    queryKey: ["contas", inicio, fim, tipo, status],
+    queryFn: () => listFn({ data: { tipo: tipo === "todos" ? undefined : tipo, status, inicio, fim } }),
   });
 
   const invalidar = () => {
@@ -56,6 +64,16 @@ function ContasPage() {
     mutationFn: (v: { id: string; escopo: "uma" | "grupo" }) => delFn({ data: v }),
     onSuccess: () => { toast.success("Excluído"); invalidar(); },
   });
+
+  const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  function mudarMes(delta: number) {
+    setRef((r) => {
+      const m = r.mes + delta;
+      if (m < 0) return { ano: r.ano - 1, mes: 11 };
+      if (m > 11) return { ano: r.ano + 1, mes: 0 };
+      return { ano: r.ano, mes: m };
+    });
+  }
 
   const hoje = new Date().toISOString().slice(0, 10);
   const totais = useMemo(() => {
@@ -82,6 +100,17 @@ function ContasPage() {
             style={{ backgroundColor: "var(--color-receita)", color: "white" }}>+ A receber</Button>
         </div>
       </header>
+
+      <Card className="p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => mudarMes(-1)}>‹</Button>
+          <span className="font-medium min-w-40 text-center">{MESES[ref.mes]} / {ref.ano}</span>
+          <Button variant="outline" size="sm" onClick={() => mudarMes(1)}>›</Button>
+          <div className="grow" />
+          <div className="text-sm text-[color:var(--color-despesa)] font-mono">− {formatBRL(totais.pagar)}</div>
+          <div className="text-sm text-[color:var(--color-receita)] font-mono">+ {formatBRL(totais.receber)}</div>
+        </div>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="p-5">
