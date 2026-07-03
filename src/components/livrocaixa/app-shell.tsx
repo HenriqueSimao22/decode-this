@@ -1,11 +1,13 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getPerfil } from "@/lib/livrocaixa.functions";
 import { souAdmin } from "@/lib/admin.functions";
-import { LogOut, LayoutDashboard, Wallet, Settings, Moon, Sun, Shield, CalendarClock } from "lucide-react";
+import { listarWorkspaces, trocarWorkspaceAtivo } from "@/lib/workspaces.functions";
+import { LogOut, LayoutDashboard, Wallet, Settings, Moon, Sun, Shield, CalendarClock, Users, Check, ChevronDown } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -15,6 +17,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { data: perfil, error: perfilError } = useQuery({ queryKey: ["perfil"], queryFn: () => perfilFn(), retry: false });
   const souAdminFn = useServerFn(souAdmin);
   const { data: perm } = useQuery({ queryKey: ["souAdmin"], queryFn: () => souAdminFn(), retry: false });
+  const wsFn = useServerFn(listarWorkspaces);
+  const { data: workspaces } = useQuery({ queryKey: ["workspaces"], queryFn: () => wsFn(), retry: false });
+  const trocarFn = useServerFn(trocarWorkspaceAtivo);
+  const qc = useQueryClient();
+  const trocar = useMutation({
+    mutationFn: (id: string) => trocarFn({ data: { workspace_id: id } }),
+    onSuccess: () => {
+      toast.success("Workspace alterado");
+      qc.invalidateQueries();
+    },
+  });
+  const wsAtual = (workspaces ?? []).find((w) => w.id === perfil?.workspace_ativo) ?? workspaces?.[0];
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
@@ -45,6 +59,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     { to: "/", label: "Visão geral", icon: LayoutDashboard },
     { to: "/transacoes", label: "Transações", icon: Wallet },
     { to: "/contas", label: "Contas", icon: CalendarClock },
+    { to: "/workspace", label: "Workspace", icon: Users },
     { to: "/configuracoes", label: "Configurações", icon: Settings },
   ] as const;
   const links = perm?.admin
@@ -57,6 +72,38 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="p-6 border-b border-sidebar-border">
           <h1 className="font-serif text-2xl font-semibold text-sidebar-primary">Livro Caixa</h1>
           <p className="text-xs opacity-70 mt-1">Controle financeiro</p>
+        </div>
+        <div className="p-3 border-b border-sidebar-border">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-sidebar-accent text-left">
+              <span
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                style={{ background: wsAtual?.cor ?? "#6366f1" }}
+              >
+                {(wsAtual?.nome ?? "?").slice(0, 1).toUpperCase()}
+              </span>
+              <span className="flex-1 min-w-0 truncate">{wsAtual?.nome ?? "Carregando..."}</span>
+              <ChevronDown className="w-4 h-4 opacity-60" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuLabel>Meus workspaces</DropdownMenuLabel>
+              {(workspaces ?? []).map((w) => (
+                <DropdownMenuItem key={w.id} onClick={() => trocar.mutate(w.id)}>
+                  <span
+                    className="w-4 h-4 rounded-full mr-2"
+                    style={{ background: w.cor ?? "#6366f1" }}
+                  />
+                  <span className="flex-1 truncate">{w.nome}</span>
+                  <span className="text-[10px] opacity-60 ml-2">{w.tipo === "conjunta" ? "conjunta" : "individual"}</span>
+                  {wsAtual?.id === w.id && <Check className="w-3 h-3 ml-2" />}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link to="/workspace">Gerenciar workspaces →</Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {links.map((l) => {
