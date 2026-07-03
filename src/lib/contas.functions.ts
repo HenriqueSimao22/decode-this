@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { getActiveWorkspaceId } from "./workspace-helper";
 
 const TipoConta = z.enum(["pagar", "receber"]);
 const Recorrencia = z.enum(["nenhuma", "semanal", "mensal", "anual"]);
@@ -33,16 +34,20 @@ export const listarContas = createServerFn({ method: "POST" })
       status: z.enum(["todas", "pendentes", "pagas", "atrasadas"]).default("todas"),
       inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       fim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      criadoPor: z.string().uuid().optional(),
     }).parse(d ?? {}),
   )
   .handler(async ({ data, context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
     let q = context.supabase
       .from("contas")
-      .select("id, tipo, descricao, valor, vencimento, categoria_id, observacao, pago_em, transacao_id, recorrencia, grupo_recorrencia, categorias(nome, cor)")
+      .select("id, tipo, descricao, valor, vencimento, categoria_id, observacao, pago_em, transacao_id, recorrencia, grupo_recorrencia, criado_por, categorias(nome, cor)")
+      .eq("workspace_id", wid)
       .order("vencimento", { ascending: true });
     if (data.tipo) q = q.eq("tipo", data.tipo);
     if (data.inicio) q = q.gte("vencimento", data.inicio);
     if (data.fim) q = q.lte("vencimento", data.fim);
+    if (data.criadoPor) q = q.eq("criado_por", data.criadoPor);
     if (data.status === "pagas") q = q.not("pago_em", "is", null);
     if (data.status === "pendentes") q = q.is("pago_em", null);
     if (data.status === "atrasadas") {
@@ -57,11 +62,13 @@ export const listarContas = createServerFn({ method: "POST" })
 export const resumoContas = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
     const hoje = new Date().toISOString().slice(0, 10);
     const em30 = addDate(hoje, 30, "week"); // ~7 meses; ok como janela
     const { data: rows, error } = await context.supabase
       .from("contas")
       .select("tipo, valor, vencimento, pago_em")
+      .eq("workspace_id", wid)
       .is("pago_em", null)
       .lte("vencimento", em30);
     if (error) throw new Error(error.message);
@@ -84,12 +91,15 @@ export const criarConta = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => ContaBase.parse(d))
   .handler(async ({ data, context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
     const isRec = data.recorrencia !== "nenhuma" && data.ocorrencias > 1;
     const grupo = isRec ? crypto.randomUUID() : null;
     const unit = data.recorrencia === "semanal" ? "week" : data.recorrencia === "anual" ? "year" : "month";
     const total = isRec ? data.ocorrencias : 1;
     const rows = Array.from({ length: total }, (_, i) => ({
       user_id: context.userId,
+      workspace_id: wid,
+      criado_por: context.userId,
       tipo: data.tipo,
       descricao: total > 1 ? `${data.descricao} (${i + 1}/${total})` : data.descricao,
       valor: data.valor,
@@ -157,6 +167,7 @@ export const marcarPago = createServerFn({ method: "POST" })
     }).parse(d),
   )
   .handler(async ({ data, context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
     const { data: conta, error: e1 } = await context.supabase
       .from("contas")
       .select("id, tipo, descricao, valor, categoria_id, observacao, pago_em")
@@ -170,6 +181,8 @@ export const marcarPago = createServerFn({ method: "POST" })
       .from("transacoes")
       .insert({
         user_id: context.userId,
+        workspace_id: wid,
+        criado_por: context.userId,
         tipo: conta.tipo === "pagar" ? "despesa" : "receita",
         descricao: conta.descricao,
         valor: conta.valor,
