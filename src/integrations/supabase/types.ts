@@ -172,6 +172,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           bloqueado: boolean
           codigo_usado: string | null
           created_at: string
@@ -183,6 +184,7 @@ export type Database = {
           workspace_ativo: string | null
         }
         Insert: {
+          avatar_url?: string | null
           bloqueado?: boolean
           codigo_usado?: string | null
           created_at?: string
@@ -194,6 +196,7 @@ export type Database = {
           workspace_ativo?: string | null
         }
         Update: {
+          avatar_url?: string | null
           bloqueado?: boolean
           codigo_usado?: string | null
           created_at?: string
@@ -398,25 +401,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
-      is_workspace_member: {
-        Args: { _user_id: string; _workspace_id: string }
-        Returns: boolean
-      }
-      is_workspace_owner: {
-        Args: { _user_id: string; _workspace_id: string }
-        Returns: boolean
-      }
-      seed_workspace_categories: {
-        Args: { _user_id: string; _workspace_id: string }
-        Returns: undefined
-      }
+      [_ in never]: never
     }
     Enums: {
       app_role: "admin" | "user"
