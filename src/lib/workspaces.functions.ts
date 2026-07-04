@@ -58,11 +58,32 @@ export const criarWorkspaceConjunto = createServerFn({ method: "POST" })
       .from("workspace_members")
       .insert({ workspace_id: w.id, user_id: context.userId, papel: "dono", cor: "#6366f1" });
     if (e2) throw new Error(e2.message);
-    // Semear categorias
-    await context.supabase.rpc("seed_workspace_categories", {
-      _workspace_id: w.id,
-      _user_id: context.userId,
-    });
+    // Semear categorias padrão
+    const CAT_DEFAULT: Array<{ nome: string; tipo: "receita" | "despesa"; cor: string }> = [
+      { nome: "Salário", tipo: "receita", cor: "#4CAF50" },
+      { nome: "Freelance", tipo: "receita", cor: "#8BC34A" },
+      { nome: "Investimentos", tipo: "receita", cor: "#009688" },
+      { nome: "Outros", tipo: "receita", cor: "#607D8B" },
+      { nome: "Alimentação", tipo: "despesa", cor: "#F44336" },
+      { nome: "Moradia", tipo: "despesa", cor: "#E91E63" },
+      { nome: "Transporte", tipo: "despesa", cor: "#FF9800" },
+      { nome: "Saúde", tipo: "despesa", cor: "#9C27B0" },
+      { nome: "Educação", tipo: "despesa", cor: "#3F51B5" },
+      { nome: "Lazer", tipo: "despesa", cor: "#00BCD4" },
+      { nome: "Compras", tipo: "despesa", cor: "#795548" },
+      { nome: "Contas", tipo: "despesa", cor: "#FF5722" },
+      { nome: "Outros", tipo: "despesa", cor: "#607D8B" },
+    ];
+    await context.supabase.from("categorias").insert(
+      CAT_DEFAULT.map((c) => ({
+        user_id: context.userId,
+        workspace_id: w.id,
+        criado_por: context.userId,
+        nome: c.nome,
+        tipo: c.tipo,
+        cor: c.cor,
+      })),
+    );
     // Ativa
     await context.supabase.from("profiles").update({ workspace_ativo: w.id }).eq("id", context.userId);
     return { id: w.id };
@@ -96,7 +117,7 @@ export const listarMembros = createServerFn({ method: "POST" })
     if (ids.length === 0) return [];
     const { data: profs } = await context.supabase
       .from("profiles")
-      .select("id, nome, email")
+      .select("id, nome, email, avatar_url")
       .in("id", ids);
     const profMap = new Map((profs ?? []).map((p) => [p.id, p]));
     return (rows ?? []).map((r) => ({
@@ -106,6 +127,7 @@ export const listarMembros = createServerFn({ method: "POST" })
       entrou_em: r.entrou_em,
       nome: profMap.get(r.user_id)?.nome ?? "Membro",
       email: profMap.get(r.user_id)?.email ?? null,
+      avatar_url: profMap.get(r.user_id)?.avatar_url ?? null,
     }));
   });
 
