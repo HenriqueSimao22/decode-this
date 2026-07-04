@@ -11,7 +11,7 @@ export const getPerfil = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("profiles")
-      .select("id, nome, tema, bloqueado, workspace_ativo")
+      .select("id, nome, email, avatar_url, tema, bloqueado, workspace_ativo")
       .eq("id", context.userId)
       .maybeSingle();
     if (error) throw new Error(error.message);
