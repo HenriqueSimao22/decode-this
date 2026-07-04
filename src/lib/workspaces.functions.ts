@@ -105,6 +105,32 @@ export const renomearWorkspace = createServerFn({ method: "POST" })
   });
 
 // ---------- Membros ----------
+export const listarMembrosAtivos = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
+    const { data: rows, error } = await context.supabase
+      .from("workspace_members")
+      .select("user_id, papel, cor")
+      .eq("workspace_id", wid);
+    if (error) throw new Error(error.message);
+    const ids = (rows ?? []).map((r) => r.user_id);
+    if (ids.length === 0) return [];
+    const { data: profs } = await context.supabase
+      .from("profiles")
+      .select("id, nome, email, avatar_url")
+      .in("id", ids);
+    const profMap = new Map((profs ?? []).map((p) => [p.id, p]));
+    return (rows ?? []).map((r) => ({
+      user_id: r.user_id,
+      papel: r.papel,
+      cor: r.cor,
+      nome: profMap.get(r.user_id)?.nome ?? "Membro",
+      email: profMap.get(r.user_id)?.email ?? null,
+      avatar_url: profMap.get(r.user_id)?.avatar_url ?? null,
+    }));
+  });
+
 export const listarMembros = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ workspace_id: z.string().uuid() }).parse(d))
