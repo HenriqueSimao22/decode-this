@@ -8,6 +8,8 @@ import {
   marcarPago,
   desmarcarPago,
 } from "@/lib/contas.functions";
+import { listarMembrosAtivos } from "@/lib/workspaces.functions";
+import { AuthorBadge } from "@/components/livrocaixa/author-badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -27,12 +29,14 @@ function ContasPage() {
   });
   const [tipo, setTipo] = useState<"todos" | "pagar" | "receber">("todos");
   const [status, setStatus] = useState<"todas" | "pendentes" | "pagas" | "atrasadas">("pendentes");
+  const [autorId, setAutorId] = useState<string>("todos");
   const [modal, setModal] = useState<{ open: boolean; inicial?: ContaEdit; tipoDefault?: "pagar" | "receber" }>({ open: false });
 
   const listFn = useServerFn(listarContas);
   const delFn = useServerFn(excluirConta);
   const pagarFn = useServerFn(marcarPago);
   const desmarcarFn = useServerFn(desmarcarPago);
+  const membrosFn = useServerFn(listarMembrosAtivos);
   const qc = useQueryClient();
 
   const inicio = `${ref.ano}-${String(ref.mes + 1).padStart(2, "0")}-01`;
@@ -40,9 +44,24 @@ function ContasPage() {
   const fim = `${ref.ano}-${String(ref.mes + 1).padStart(2, "0")}-${String(fimDate.getDate()).padStart(2, "0")}`;
 
   const { data: rows } = useQuery({
-    queryKey: ["contas", inicio, fim, tipo, status],
-    queryFn: () => listFn({ data: { tipo: tipo === "todos" ? undefined : tipo, status, inicio, fim } }),
+    queryKey: ["contas", inicio, fim, tipo, status, autorId],
+    queryFn: () =>
+      listFn({
+        data: {
+          tipo: tipo === "todos" ? undefined : tipo,
+          status,
+          inicio,
+          fim,
+          criadoPor: autorId === "todos" ? undefined : autorId,
+        },
+      }),
   });
+  const { data: membros } = useQuery({ queryKey: ["membrosAtivos"], queryFn: () => membrosFn() });
+  const membrosMap = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const x of membros ?? []) m.set(x.user_id, x);
+    return m;
+  }, [membros]);
 
   const invalidar = () => {
     qc.invalidateQueries({ queryKey: ["contas"] });
@@ -123,7 +142,7 @@ function ContasPage() {
         </Card>
       </div>
 
-      <div className="grid gap-2 md:grid-cols-2">
+      <div className="grid gap-2 md:grid-cols-3">
         <Select value={tipo} onValueChange={(v: any) => setTipo(v)}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -141,6 +160,15 @@ function ContasPage() {
             <SelectItem value="todas">Todas</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={autorId} onValueChange={setAutorId}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todas as pessoas</SelectItem>
+            {(membros ?? []).map((m) => (
+              <SelectItem key={m.user_id} value={m.user_id}>{m.nome}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <Card className="divide-y">
@@ -153,13 +181,16 @@ function ContasPage() {
           const pago = !!r.pago_em;
           const atrasada = !pago && r.vencimento < hoje;
           const cor = isPagar ? "var(--color-despesa)" : "var(--color-receita)";
+          const autor = membrosMap.get((r as any).criado_por);
           return (
             <div key={r.id} className="p-4 flex items-center gap-4">
               <div className="w-2 h-10 rounded" style={{ background: pago ? "var(--muted-foreground)" : cor, opacity: pago ? 0.4 : 1 }} />
+              <AuthorBadge autor={autor} />
               <div className="flex-1 min-w-0">
                 <div className={`font-medium truncate ${pago ? "line-through opacity-60" : ""}`}>{r.descricao}</div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs text-muted-foreground truncate">
                   Vence {new Date(r.vencimento + "T12:00").toLocaleDateString("pt-BR")} · {cat}
+                  {autor && <> · por {autor.nome}</>}
                   {atrasada && <span className="ml-2 text-[color:var(--color-despesa)] font-medium">· atrasada</span>}
                   {pago && <span className="ml-2 text-[color:var(--color-receita)] font-medium">· paga</span>}
                   {r.grupo_recorrencia && <span className="ml-2">· recorrente</span>}
