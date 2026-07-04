@@ -8,6 +8,7 @@ import { souAdmin } from "@/lib/admin.functions";
 import { listarWorkspaces, trocarWorkspaceAtivo } from "@/lib/workspaces.functions";
 import { LogOut, LayoutDashboard, Wallet, Settings, Moon, Sun, Shield, CalendarClock, Users, Check, ChevronDown } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -126,7 +127,15 @@ export function AppShell({ children }: { children: ReactNode }) {
           })}
         </nav>
         <div className="p-3 border-t border-sidebar-border space-y-1">
-          <div className="px-3 py-2 text-xs opacity-70 truncate">{perfil?.nome ?? "Usuário"}</div>
+          <div className="px-3 py-2 flex items-center gap-2">
+            <Avatar className="w-7 h-7">
+              {perfil?.avatar_url ? <AvatarImage src={perfil.avatar_url} alt={perfil?.nome ?? ""} /> : null}
+              <AvatarFallback className="text-[10px] font-bold text-white" style={{ background: wsAtual?.cor ?? "#6366f1" }}>
+                {(perfil?.nome ?? "?").slice(0, 1).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="text-xs opacity-80 truncate">{perfil?.nome ?? "Usuário"}</div>
+          </div>
           <button
             onClick={toggleTema}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm hover:bg-sidebar-accent"

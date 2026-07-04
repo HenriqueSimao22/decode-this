@@ -7,6 +7,8 @@ import {
   listarCategorias,
   excluirTransacao,
 } from "@/lib/livrocaixa.functions";
+import { listarMembrosAtivos } from "@/lib/workspaces.functions";
+import { AuthorBadge } from "@/components/livrocaixa/author-badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,12 +28,14 @@ function TransacoesPage() {
   });
   const [tipo, setTipo] = useState<"todos" | "receita" | "despesa">("todos");
   const [categoriaId, setCategoriaId] = useState<string>("todas");
+  const [autorId, setAutorId] = useState<string>("todos");
   const [busca, setBusca] = useState("");
   const [modal, setModal] = useState<{ open: boolean; inicial?: TransacaoEdit }>({ open: false });
 
   const listFn = useServerFn(listarTransacoes);
   const catFn = useServerFn(listarCategorias);
   const delFn = useServerFn(excluirTransacao);
+  const membrosFn = useServerFn(listarMembrosAtivos);
   const qc = useQueryClient();
 
   const inicio = `${ref.ano}-${String(ref.mes + 1).padStart(2, "0")}-01`;
@@ -39,7 +43,7 @@ function TransacoesPage() {
   const fim = `${ref.ano}-${String(ref.mes + 1).padStart(2, "0")}-${String(fimDate.getDate()).padStart(2, "0")}`;
 
   const { data: rows } = useQuery({
-    queryKey: ["transacoes", inicio, fim, tipo, categoriaId, busca],
+    queryKey: ["transacoes", inicio, fim, tipo, categoriaId, busca, autorId],
     queryFn: () =>
       listFn({
         data: {
@@ -48,10 +52,17 @@ function TransacoesPage() {
           tipo: tipo === "todos" ? undefined : tipo,
           categoriaId: categoriaId === "todas" ? undefined : categoriaId,
           busca: busca || undefined,
+          criadoPor: autorId === "todos" ? undefined : autorId,
         },
       }),
   });
   const { data: cats } = useQuery({ queryKey: ["categorias"], queryFn: () => catFn() });
+  const { data: membros } = useQuery({ queryKey: ["membrosAtivos"], queryFn: () => membrosFn() });
+  const membrosMap = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const x of membros ?? []) m.set(x.user_id, x);
+    return m;
+  }, [membros]);
 
   const del = useMutation({
     mutationFn: (id: string) => delFn({ data: { id } }),
@@ -103,7 +114,7 @@ function TransacoesPage() {
         </div>
       </Card>
 
-      <div className="grid gap-2 md:grid-cols-3">
+      <div className="grid gap-2 md:grid-cols-4">
         <Input placeholder="Buscar descrição..." value={busca} onChange={(e) => setBusca(e.target.value)} />
         <Select value={tipo} onValueChange={(v: any) => setTipo(v)}>
           <SelectTrigger><SelectValue /></SelectTrigger>
@@ -122,6 +133,15 @@ function TransacoesPage() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={autorId} onValueChange={setAutorId}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todas as pessoas</SelectItem>
+            {(membros ?? []).map((m) => (
+              <SelectItem key={m.user_id} value={m.user_id}>{m.nome}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <Card className="divide-y">
@@ -131,15 +151,20 @@ function TransacoesPage() {
         {(rows ?? []).map((t) => {
           const cat = (t as any).categorias?.nome ?? "Sem categoria";
           const isReceita = t.tipo === "receita";
+          const autor = membrosMap.get((t as any).criado_por);
           return (
             <div key={t.id} className="p-4 flex items-center gap-4">
               <div
                 className="w-2 h-10 rounded"
                 style={{ background: isReceita ? "var(--color-receita)" : "var(--color-despesa)" }}
               />
+              <AuthorBadge autor={autor} />
               <div className="flex-1 min-w-0">
                 <div className="font-medium truncate">{t.descricao}</div>
-                <div className="text-xs text-muted-foreground">{new Date(t.data + "T12:00").toLocaleDateString("pt-BR")} · {cat}</div>
+                <div className="text-xs text-muted-foreground truncate">
+                  {new Date(t.data + "T12:00").toLocaleDateString("pt-BR")} · {cat}
+                  {autor && <> · por {autor.nome}</>}
+                </div>
               </div>
               <div className={`font-mono font-semibold ${isReceita ? "text-[color:var(--color-receita)]" : "text-[color:var(--color-despesa)]"}`}>
                 {isReceita ? "+ " : "− "}{formatBRL(Number(t.valor))}

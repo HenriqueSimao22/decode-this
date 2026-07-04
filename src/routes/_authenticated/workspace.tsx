@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Copy, Trash2, UserMinus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -147,12 +148,12 @@ function WorkspacePage() {
           <div className="space-y-2">
             {(membros ?? []).map((m) => (
               <div key={m.user_id} className="flex items-center gap-3 p-3 border rounded-md">
-                <span
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                  style={{ background: m.cor }}
-                >
-                  {(m.nome ?? "?").slice(0, 1).toUpperCase()}
-                </span>
+                <Avatar className="w-8 h-8">
+                  {(m as any).avatar_url ? <AvatarImage src={(m as any).avatar_url} alt={m.nome} /> : null}
+                  <AvatarFallback className="text-xs font-bold text-white" style={{ background: m.cor }}>
+                    {(m.nome ?? "?").slice(0, 1).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate">{m.nome}</div>
                   <div className="text-xs text-muted-foreground truncate">{m.email} · {m.papel}</div>
