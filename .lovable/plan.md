@@ -1,55 +1,71 @@
 ## O que vou fazer
 
-### 1. Definir sua senha
-Sua conta `henriquesimao.eng@gmail.com` foi criada via Google e não tinha senha. Vou definir `Jogador22` no seu registro existente — você continua entrando pelo Google **e** pelo e-mail/senha.
+### 1. Admin: excluir código revogado
+- Botão "Excluir" (lixeira) aparece apenas em códigos com status `revogado` na aba Códigos do painel admin.
+- Nova função `excluirCodigo` em `admin.functions.ts` que verifica papel admin e faz `DELETE` só se o status for `revogado` (nunca deleta ativos/usados).
+- Confirmação antes de excluir.
 
-### 2. Conta conjunta (Workspaces)
+### 2. Usuário: excluir workspace
+- Botão "Excluir workspace" na página `/workspace`, visível apenas para o **dono** e apenas se o workspace **não for o único** do usuário (senão o app fica sem workspace ativo).
+- Confirmação com aviso: "Isso apaga todas as transações, contas, categorias e cartões deste workspace. Não dá pra desfazer."
+- Nova função `excluirWorkspace` em `workspaces.functions.ts`: valida papel `dono` + não é o último workspace do usuário → deleta o workspace (cascata SQL apaga membros, convites, transações, contas, categorias, cartões).
+- Se o workspace excluído era o ativo, seta `profiles.workspace_ativo` para outro workspace do usuário.
+- Migração: adiciona `ON DELETE CASCADE` nas FKs que faltarem (workspace_members, workspace_invites, transacoes, contas, categorias, cartoes, faturas, transacoes_cartao) para não deixar órfãos.
 
-Modelo novo: todo lançamento pertence a um **workspace** (não mais a um usuário). Cada workspace é `individual` (só você) ou `conjunta` (você + convidados). Cada registro guarda **quem lançou** para aparecer com nome e avatar de cor.
+### 3. Cartões de crédito
 
-**Regras principais:**
-- Todo usuário ganha automaticamente 1 workspace individual ao se cadastrar.
-- Qualquer usuário pode criar workspaces conjuntos adicionais e convidar por e-mail.
-- Ao entrar num workspace conjunto, **os lançamentos antigos do individual ficam separados** (não migram automaticamente). Você alterna pelo seletor no topo.
-- Convite: dono gera link com token → outro usuário aceita entrando na conta dele.
-- Cada membro tem uma cor definida (paleta pré-definida ou personalizada).
+**Modelo de dados** (nova migração):
 
-### 3. Banco de dados
+- `cartoes` — id, workspace_id, criado_por, nome (apelido, ex.: "Nubank Roxinho"), bandeira (visa/mastercard/elo/amex/hipercard), banco (código da lista abaixo), cor, limite, dia_fechamento (1–31), dia_vencimento (1–31), conta_pagamento_id (conta usada para pagar a fatura, opcional), ativo (bool).
+- `faturas` — id, cartao_id, mes_referencia (YYYY-MM), data_fechamento, data_vencimento, valor_total (calculado), status (aberta/fechada/paga), pago_em, pago_conta_id. Uma fatura por cartão por mês.
+- `transacoes_cartao` — id, cartao_id, fatura_id (calculado no insert), workspace_id, criado_por, categoria_id, descricao, valor_total, data_compra, parcelas_total (1–24), parcela_atual (1..parcelas_total), valor_parcela, grupo_compra_id (uuid que agrupa todas as parcelas da mesma compra), observacoes.
+- Ao inserir uma compra parcelada, o backend cria N linhas (uma por parcela) e cada linha entra na fatura correta (baseado em `data_compra` + `dia_fechamento`).
 
-**Novas tabelas:**
-- `workspaces` — id, nome, tipo (individual/conjunta), criado_por
-- `workspace_members` — workspace_id, user_id, cor, papel (dono/membro), entrou_em
-- `workspace_invites` — workspace_id, email_convidado, token, status, expira_em
+**Lógica de fatura**:
+- Compra feita **antes** do dia de fechamento do mês → fatura do mês atual (vence no `dia_vencimento` do mês seguinte).
+- Compra feita **depois** do fechamento → fatura do mês seguinte.
+- Fatura é criada/reutilizada automaticamente ao lançar a compra.
+- Pagar fatura: gera uma transação de despesa na `conta_pagamento_id` (ou conta escolhida no ato), marca fatura como paga.
 
-**Colunas novas em existentes:**
-- `transacoes`, `contas`, `categorias` → `workspace_id` (obrigatório) e `criado_por` (quem lançou)
-- Migração: cria 1 workspace individual pra cada usuário existente, aponta todos os registros dele pra esse workspace.
+**Bancos suportados** (lista da referência — ampla o suficiente para cobrir os principais no Brasil):
 
-**RLS:** só membros ativos do workspace enxergam/editam. Convites só o dono gerencia.
+Nubank, Itaú, Bradesco, Santander, Banco do Brasil, Caixa, Inter, C6 Bank, BTG Pactual, XP Investimentos, Sicoob, Sicredi, Banrisul, Safra, PagBank/PagSeguro, Mercado Pago, PicPay, Neon, Next, Original, Will Bank, Digio, Ame Digital, Trigg, Porto Seguro, Renner, Riachuelo, C&A, Marisa, Havan, Havan, Credicard, American Express, Latam Pass Itaú, Smiles Bradesco, Localiza, Bmg, Pan, Cetelem, Genial, Modalmais, e **Outro** (com campo livre).
 
-### 4. Backend (server functions)
+Cada banco tem um logo/inicial + cor padrão pré-definida (o usuário pode sobrescrever a cor).
 
-- `workspaces.functions.ts`: listar meus workspaces, criar conjunto, convidar por e-mail, aceitar convite, listar membros, mudar cor, remover membro (só dono), sair do workspace, definir workspace ativo (guardado no `profiles`).
-- Ajustar `livrocaixa.functions.ts` e `contas.functions.ts` para filtrar por `workspace_id` ativo (guardado num campo `workspace_ativo` em `profiles`) e gravar `criado_por = userId`.
-- Categorias passam a ser por workspace (workspaces novos ganham as 13 categorias padrão via seed).
+**Server functions** (`cartoes.functions.ts`):
+- `listarCartoes` — lista os cartões do workspace ativo com totais da fatura atual.
+- `criarCartao`, `editarCartao`, `arquivarCartao`, `excluirCartao`.
+- `listarFatura(cartao_id, mes_referencia)` — retorna a fatura + linhas.
+- `listarFaturasCartao(cartao_id)` — histórico de faturas.
+- `lancarCompraCartao` — cria a compra com N parcelas, atribuindo cada parcela à fatura certa.
+- `editarCompraCartao` / `excluirCompraCartao` — edita/apaga o grupo inteiro (todas as parcelas) por padrão, com opção de apagar só uma parcela.
+- `pagarFatura(fatura_id, conta_id, data_pagamento)` — cria transação de despesa e marca fatura como paga.
 
-### 5. Frontend
+**RLS**: só membros do workspace veem/editam. Todos os inserts gravam `criado_por`.
 
-- **Seletor de workspace no topbar** (dropdown com nome + avatares dos membros; opção "Criar novo").
-- **Página `/workspace`** — configurações: renomear, gerenciar membros (nome, cor, remover), gerar convite (link copiável), listar convites pendentes.
-- **Página `/convite/$token`** — aceitar convite (precisa estar logado).
-- **Nos lançamentos e contas**: mostrar avatar circular colorido + primeiro nome de quem lançou, ao lado do valor. Filtro adicional "Por pessoa" quando o workspace tem mais de 1 membro.
-- **Cadastro atualizado**: primeira pergunta após signup → "Você quer usar sozinho ou vai compartilhar com alguém?" (só sugere criar conjunto; individual já existe).
+**Frontend**:
 
-### 6. Fora do escopo desta fase
-- Notificação por e-mail do convite (por enquanto o dono copia o link e manda). Podemos adicionar e-mail transacional depois.
-- Divisão de despesas / quem-deve-a-quem: por enquanto tudo é do casal, sem cálculo de acerto.
-- Migração dos dados antigos: mantidos no individual conforme você decidiu.
+- **Aba nova "Cartões"** no sidebar (ícone `CreditCard`).
+- Rota `/_authenticated/cartoes` — grid de cards mostrando cada cartão (cor + banco + apelido, fatura atual, limite disponível). Clique abre detalhe.
+- Rota `/_authenticated/cartoes/$id` — detalhe do cartão:
+  - Header com apelido, banco, bandeira, limite, cor.
+  - Seletor de mês (igual transações/contas) navegando entre faturas.
+  - Lista de compras da fatura (com autor + parcela X/Y).
+  - Botões: **Nova compra**, **Pagar fatura** (quando fechada), **Editar cartão**, **Arquivar/Excluir**.
+- **Modal `CartaoModal`** — criar/editar cartão: apelido, banco (autocomplete com logo), bandeira, dia_fechamento, dia_vencimento, limite, cor, conta padrão de pagamento.
+- **Modal `CompraCartaoModal`** — nova compra: descrição, categoria, valor total, data, parcelas (1–24 com preview do valor da parcela e das faturas afetadas), observações.
+- **Modal `PagarFaturaModal`** — escolher conta + data → confirma pagamento.
+- Autoria (avatar + nome) nas linhas da fatura, igual às demais listas.
+
+### Fora do escopo desta fase
+- Notificações de vencimento de fatura.
+- Estorno / parcelamento de fatura em si (só parcelamento da compra).
+- Importação de fatura por PDF/OFX.
 
 ---
 
-**Se aprovar, executo nesta ordem:**
-1. Migração SQL (senha + tabelas + RLS + backfill)
-2. Server functions de workspace + ajustes nas existentes
-3. Seletor + página de workspace + página de convite
-4. Autoria visual nos lançamentos e contas
+**Ordem de execução se aprovar**:
+1. Migração SQL (cartões + faturas + transacoes_cartao + RLS + cascades das FKs existentes).
+2. Server functions (admin excluir código, excluir workspace, cartões).
+3. Frontend (botões de exclusão + páginas e modais de cartões).

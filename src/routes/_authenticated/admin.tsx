@@ -10,6 +10,7 @@ import {
   definirBloqueio,
   definirAdmin,
   souAdmin,
+  excluirCodigo,
 } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Copy, Ban, ShieldCheck, ShieldOff, Check } from "lucide-react";
+import { Copy, Ban, ShieldCheck, ShieldOff, Check, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "Administração — Livro Caixa" }] }),
@@ -61,6 +62,7 @@ function CodigosPanel() {
   const listar = useServerFn(listarCodigos);
   const gerar = useServerFn(gerarCodigos);
   const revogar = useServerFn(revogarCodigo);
+  const excluir = useServerFn(excluirCodigo);
   const { data: codigos } = useQuery({ queryKey: ["codigos"], queryFn: () => listar() });
   const [qtd, setQtd] = useState(1);
   const [prefixo, setPrefixo] = useState("LIVRO");
@@ -78,6 +80,11 @@ function CodigosPanel() {
   const mRev = useMutation({
     mutationFn: (id: string) => revogar({ data: { id } }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["codigos"] }); toast.success("Código revogado"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const mDel = useMutation({
+    mutationFn: (id: string) => excluir({ data: { id } }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["codigos"] }); toast.success("Código excluído"); },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -123,6 +130,12 @@ function CodigosPanel() {
                     {c.status === "ativo" && (
                       <Button size="sm" variant="ghost" onClick={() => mRev.mutate(c.id)}>
                         <Ban className="w-4 h-4" />
+                      </Button>
+                    )}
+                    {c.status === "revogado" && (
+                      <Button size="sm" variant="ghost"
+                        onClick={() => confirm("Excluir permanentemente este código?") && mDel.mutate(c.id)}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
                     )}
                   </TableCell>

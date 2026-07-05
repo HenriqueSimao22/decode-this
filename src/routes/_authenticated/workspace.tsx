@@ -12,6 +12,7 @@ import {
   gerarConvite,
   listarConvites,
   revogarConvite,
+  excluirWorkspace,
 } from "@/lib/workspaces.functions";
 import { getPerfil } from "@/lib/livrocaixa.functions";
 import { Card } from "@/components/ui/card";
@@ -41,6 +42,7 @@ function WorkspacePage() {
   const conviteFn = useServerFn(gerarConvite);
   const convitesFn = useServerFn(listarConvites);
   const revFn = useServerFn(revogarConvite);
+  const delWsFn = useServerFn(excluirWorkspace);
 
   const { data: perfil } = useQuery({ queryKey: ["perfil"], queryFn: () => perfilFn() });
   const { data: workspaces } = useQuery({ queryKey: ["workspaces"], queryFn: () => wsFn() });
@@ -104,6 +106,11 @@ function WorkspacePage() {
     mutationFn: (id: string) => revFn({ data: { id } }),
     onSuccess: () => { toast.success("Revogado"); invalidar(); },
   });
+  const excluirWs = useMutation({
+    mutationFn: () => delWsFn({ data: { id: atual!.id } }),
+    onSuccess: () => { toast.success("Workspace excluído"); qc.invalidateQueries(); },
+    onError: (e: any) => toast.error("Erro", { description: e.message }),
+  });
 
   const isDono = atual?.papel === "dono";
 
@@ -136,6 +143,21 @@ function WorkspacePage() {
               />
               <Button onClick={() => renomear.mutate()} disabled={!nomeEditar.trim()}>
                 Salvar
+              </Button>
+            </div>
+          )}
+          {isDono && (workspaces?.length ?? 0) > 1 && (
+            <div className="pt-2 border-t">
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (confirm(`Excluir "${atual.nome}"?\n\nIsso apaga TODAS as transações, contas, categorias e cartões deste workspace. Não dá pra desfazer.`)) {
+                    excluirWs.mutate();
+                  }
+                }}
+                disabled={excluirWs.isPending}
+              >
+                <Trash2 className="w-4 h-4 mr-1" /> Excluir workspace
               </Button>
             </div>
           )}

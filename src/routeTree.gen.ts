@@ -16,8 +16,10 @@ import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authentica
 import { Route as AuthenticatedTransacoesRouteImport } from './routes/_authenticated/transacoes'
 import { Route as AuthenticatedContasRouteImport } from './routes/_authenticated/contas'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
+import { Route as AuthenticatedCartoesRouteImport } from './routes/_authenticated/cartoes'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedConviteTokenRouteImport } from './routes/_authenticated/convite.$token'
+import { Route as AuthenticatedCartoesIdRouteImport } from './routes/_authenticated/cartoes.$id'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -54,6 +56,11 @@ const AuthenticatedConfiguracoesRoute =
     path: '/configuracoes',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCartoesRoute = AuthenticatedCartoesRouteImport.update({
+  id: '/cartoes',
+  path: '/cartoes',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -65,25 +72,34 @@ const AuthenticatedConviteTokenRoute =
     path: '/convite/$token',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCartoesIdRoute = AuthenticatedCartoesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AuthenticatedCartoesRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
   '/admin': typeof AuthenticatedAdminRoute
+  '/cartoes': typeof AuthenticatedCartoesRouteWithChildren
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/contas': typeof AuthenticatedContasRoute
   '/transacoes': typeof AuthenticatedTransacoesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
+  '/cartoes/$id': typeof AuthenticatedCartoesIdRoute
   '/convite/$token': typeof AuthenticatedConviteTokenRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/admin': typeof AuthenticatedAdminRoute
+  '/cartoes': typeof AuthenticatedCartoesRouteWithChildren
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/contas': typeof AuthenticatedContasRoute
   '/transacoes': typeof AuthenticatedTransacoesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/': typeof AuthenticatedIndexRoute
+  '/cartoes/$id': typeof AuthenticatedCartoesIdRoute
   '/convite/$token': typeof AuthenticatedConviteTokenRoute
 }
 export interface FileRoutesById {
@@ -91,11 +107,13 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
+  '/_authenticated/cartoes': typeof AuthenticatedCartoesRouteWithChildren
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/_authenticated/contas': typeof AuthenticatedContasRoute
   '/_authenticated/transacoes': typeof AuthenticatedTransacoesRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/cartoes/$id': typeof AuthenticatedCartoesIdRoute
   '/_authenticated/convite/$token': typeof AuthenticatedConviteTokenRoute
 }
 export interface FileRouteTypes {
@@ -104,31 +122,37 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/admin'
+    | '/cartoes'
     | '/configuracoes'
     | '/contas'
     | '/transacoes'
     | '/workspace'
+    | '/cartoes/$id'
     | '/convite/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
     | '/admin'
+    | '/cartoes'
     | '/configuracoes'
     | '/contas'
     | '/transacoes'
     | '/workspace'
     | '/'
+    | '/cartoes/$id'
     | '/convite/$token'
   id:
     | '__root__'
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/admin'
+    | '/_authenticated/cartoes'
     | '/_authenticated/configuracoes'
     | '/_authenticated/contas'
     | '/_authenticated/transacoes'
     | '/_authenticated/workspace'
     | '/_authenticated/'
+    | '/_authenticated/cartoes/$id'
     | '/_authenticated/convite/$token'
   fileRoutesById: FileRoutesById
 }
@@ -188,6 +212,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConfiguracoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/cartoes': {
+      id: '/_authenticated/cartoes'
+      path: '/cartoes'
+      fullPath: '/cartoes'
+      preLoaderRoute: typeof AuthenticatedCartoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin': {
       id: '/_authenticated/admin'
       path: '/admin'
@@ -202,11 +233,30 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConviteTokenRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/cartoes/$id': {
+      id: '/_authenticated/cartoes/$id'
+      path: '/$id'
+      fullPath: '/cartoes/$id'
+      preLoaderRoute: typeof AuthenticatedCartoesIdRouteImport
+      parentRoute: typeof AuthenticatedCartoesRoute
+    }
   }
 }
 
+interface AuthenticatedCartoesRouteChildren {
+  AuthenticatedCartoesIdRoute: typeof AuthenticatedCartoesIdRoute
+}
+
+const AuthenticatedCartoesRouteChildren: AuthenticatedCartoesRouteChildren = {
+  AuthenticatedCartoesIdRoute: AuthenticatedCartoesIdRoute,
+}
+
+const AuthenticatedCartoesRouteWithChildren =
+  AuthenticatedCartoesRoute._addFileChildren(AuthenticatedCartoesRouteChildren)
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
+  AuthenticatedCartoesRoute: typeof AuthenticatedCartoesRouteWithChildren
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
   AuthenticatedContasRoute: typeof AuthenticatedContasRoute
   AuthenticatedTransacoesRoute: typeof AuthenticatedTransacoesRoute
@@ -217,6 +267,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
+  AuthenticatedCartoesRoute: AuthenticatedCartoesRouteWithChildren,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
   AuthenticatedContasRoute: AuthenticatedContasRoute,
   AuthenticatedTransacoesRoute: AuthenticatedTransacoesRoute,
@@ -235,13 +286,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

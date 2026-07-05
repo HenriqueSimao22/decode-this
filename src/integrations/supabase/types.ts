@@ -50,6 +50,62 @@ export type Database = {
         }
         Relationships: []
       }
+      cartoes: {
+        Row: {
+          ativo: boolean
+          banco: string
+          bandeira: string
+          cor: string
+          created_at: string
+          criado_por: string | null
+          dia_fechamento: number
+          dia_vencimento: number
+          id: string
+          limite: number | null
+          nome: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          banco: string
+          bandeira: string
+          cor?: string
+          created_at?: string
+          criado_por?: string | null
+          dia_fechamento: number
+          dia_vencimento: number
+          id?: string
+          limite?: number | null
+          nome: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          ativo?: boolean
+          banco?: string
+          bandeira?: string
+          cor?: string
+          created_at?: string
+          criado_por?: string | null
+          dia_fechamento?: number
+          dia_vencimento?: number
+          id?: string
+          limite?: number | null
+          nome?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cartoes_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categorias: {
         Row: {
           cor: string | null
@@ -170,6 +226,70 @@ export type Database = {
           },
         ]
       }
+      faturas: {
+        Row: {
+          cartao_id: string
+          created_at: string
+          data_fechamento: string
+          data_vencimento: string
+          id: string
+          mes_referencia: string
+          pago_em: string | null
+          status: string
+          transacao_pagamento_id: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          cartao_id: string
+          created_at?: string
+          data_fechamento: string
+          data_vencimento: string
+          id?: string
+          mes_referencia: string
+          pago_em?: string | null
+          status?: string
+          transacao_pagamento_id?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          cartao_id?: string
+          created_at?: string
+          data_fechamento?: string
+          data_vencimento?: string
+          id?: string
+          mes_referencia?: string
+          pago_em?: string | null
+          status?: string
+          transacao_pagamento_id?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "faturas_cartao_id_fkey"
+            columns: ["cartao_id"]
+            isOneToOne: false
+            referencedRelation: "cartoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "faturas_transacao_pagamento_id_fkey"
+            columns: ["transacao_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "transacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "faturas_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -262,6 +382,92 @@ export type Database = {
           },
           {
             foreignKeyName: "transacoes_workspace_fk"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transacoes_cartao: {
+        Row: {
+          cartao_id: string
+          categoria_id: string | null
+          created_at: string
+          criado_por: string | null
+          data_compra: string
+          descricao: string
+          fatura_id: string
+          grupo_compra_id: string
+          id: string
+          observacao: string | null
+          parcela_atual: number
+          parcelas_total: number
+          updated_at: string
+          valor_parcela: number
+          valor_total: number
+          workspace_id: string
+        }
+        Insert: {
+          cartao_id: string
+          categoria_id?: string | null
+          created_at?: string
+          criado_por?: string | null
+          data_compra: string
+          descricao: string
+          fatura_id: string
+          grupo_compra_id: string
+          id?: string
+          observacao?: string | null
+          parcela_atual?: number
+          parcelas_total?: number
+          updated_at?: string
+          valor_parcela: number
+          valor_total: number
+          workspace_id: string
+        }
+        Update: {
+          cartao_id?: string
+          categoria_id?: string | null
+          created_at?: string
+          criado_por?: string | null
+          data_compra?: string
+          descricao?: string
+          fatura_id?: string
+          grupo_compra_id?: string
+          id?: string
+          observacao?: string | null
+          parcela_atual?: number
+          parcelas_total?: number
+          updated_at?: string
+          valor_parcela?: number
+          valor_total?: number
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transacoes_cartao_cartao_id_fkey"
+            columns: ["cartao_id"]
+            isOneToOne: false
+            referencedRelation: "cartoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transacoes_cartao_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transacoes_cartao_fatura_id_fkey"
+            columns: ["fatura_id"]
+            isOneToOne: false
+            referencedRelation: "faturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transacoes_cartao_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
