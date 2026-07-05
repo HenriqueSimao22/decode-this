@@ -192,6 +192,52 @@ export const removerMembro = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const excluirWorkspace = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    // Verifica se é dono
+    const { data: m, error: e0 } = await context.supabase
+      .from("workspace_members")
+      .select("papel")
+      .eq("workspace_id", data.id)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (e0) throw new Error(e0.message);
+    if (!m) throw new Error("Você não é membro deste workspace.");
+    if (m.papel !== "dono") throw new Error("Somente o dono pode excluir o workspace.");
+
+    // Não pode ser o único workspace do usuário
+    const { data: meusIds } = await context.supabase
+      .from("workspace_members")
+      .select("workspace_id")
+      .eq("user_id", context.userId);
+    const outros = (meusIds ?? []).filter((r) => r.workspace_id !== data.id);
+    if (outros.length === 0)
+      throw new Error("Este é seu único workspace. Crie outro antes de excluí-lo.");
+
+    // Se era o ativo, aponta pra outro
+    const { data: prof } = await context.supabase
+      .from("profiles")
+      .select("workspace_ativo")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (prof?.workspace_ativo === data.id) {
+      await context.supabase
+        .from("profiles")
+        .update({ workspace_ativo: outros[0].workspace_id })
+        .eq("id", context.userId);
+    }
+
+    // Apaga (cascata cuida dos filhos)
+    const { error } = await context.supabase
+      .from("workspaces")
+      .delete()
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true, novo_ativo: outros[0].workspace_id };
+  });
+
 // ---------- Convites ----------
 export const gerarConvite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
