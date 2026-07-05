@@ -82,6 +82,29 @@ export const revogarCodigo = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const excluirCodigo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { data: row, error: e0 } = await context.supabase
+      .from("access_codes")
+      .select("status")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (e0) throw new Error(e0.message);
+    if (!row) throw new Error("Código não encontrado.");
+    if (row.status !== "revogado")
+      throw new Error("Só é possível excluir códigos revogados. Revogue primeiro.");
+    const { error } = await context.supabase
+      .from("access_codes")
+      .delete()
+      .eq("id", data.id)
+      .eq("status", "revogado");
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 export const listarUsuarios = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
