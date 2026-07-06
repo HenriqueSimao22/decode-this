@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -30,13 +30,34 @@ export function AppShell({ children }: { children: ReactNode }) {
     },
   });
   const wsAtual = (workspaces ?? []).find((w) => w.id === perfil?.workspace_ativo) ?? workspaces?.[0];
-  const [dark, setDark] = useState(false);
+  const tema = (perfil?.tema ?? "pergaminho") as "claro" | "pergaminho" | "escuro";
 
   useEffect(() => {
-    const isDark = perfil?.tema === "escuro";
-    setDark(isDark);
-    document.documentElement.classList.toggle("dark", isDark);
-  }, [perfil?.tema]);
+    const root = document.documentElement;
+    root.classList.toggle("dark", tema === "escuro");
+    root.classList.toggle("pergaminho", tema === "pergaminho");
+  }, [tema]);
+
+  // Auto-hide sidebar (5s sem mouse). Aparece ao encostar na borda esquerda.
+  const [open, setOpen] = useState(true);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function scheduleHide() {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => setOpen(false), 5000);
+  }
+  useEffect(() => {
+    scheduleHide();
+    return () => {
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+    };
+  }, []);
+  function handleEnter() {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    setOpen(true);
+  }
+  function handleLeave() {
+    scheduleHide();
+  }
 
   useEffect(() => {
     if (perfilError && /bloqueada/i.test(String((perfilError as Error).message))) {
@@ -48,12 +69,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   async function sair() {
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
-  }
-
-  function toggleTema() {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.classList.toggle("dark", next);
   }
 
   const baseLinks = [
@@ -70,10 +85,22 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
-      <aside className="hidden md:flex md:w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
+      {/* Zona sensível na lateral esquerda para reabrir o sidebar */}
+      <div
+        className="hidden md:block fixed left-0 top-0 h-full w-3 z-30"
+        onMouseEnter={handleEnter}
+        aria-hidden
+      />
+      <aside
+        onMouseEnter={handleEnter}
+        onMouseLeave={handleLeave}
+        className={`hidden md:flex fixed md:static z-40 h-screen md:h-auto w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-transform duration-300 ease-out ${
+          open ? "translate-x-0" : "-translate-x-full md:-ml-64"
+        }`}
+      >
         <div className="p-6 border-b border-sidebar-border">
           <h1 className="font-serif text-2xl font-semibold text-sidebar-primary">Livro Caixa</h1>
-          <p className="text-xs opacity-70 mt-1">Controle financeiro</p>
+          <p className="text-xs opacity-70 mt-1">Controle financeiro inteligente</p>
         </div>
         <div className="p-3 border-b border-sidebar-border">
           <DropdownMenu>
@@ -137,13 +164,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Avatar>
             <div className="text-xs opacity-80 truncate">{perfil?.nome ?? "Usuário"}</div>
           </div>
-          <button
-            onClick={toggleTema}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm hover:bg-sidebar-accent"
-          >
-            {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            {dark ? "Tema claro" : "Tema escuro"}
-          </button>
           <button
             onClick={sair}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm hover:bg-sidebar-accent"
