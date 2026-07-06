@@ -11,6 +11,7 @@ import {
   definirAdmin,
   souAdmin,
   excluirCodigo,
+  excluirUsuario,
 } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Copy, Ban, ShieldCheck, ShieldOff, Check, Trash2 } from "lucide-react";
+import { Copy, Ban, ShieldCheck, ShieldOff, Check, Trash2, UserX } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "Administração — Livro Caixa" }] }),
@@ -162,6 +163,7 @@ function UsuariosPanel() {
   const listar = useServerFn(listarUsuarios);
   const bloq = useServerFn(definirBloqueio);
   const adm = useServerFn(definirAdmin);
+  const del = useServerFn(excluirUsuario);
   const { data: usuarios } = useQuery({ queryKey: ["usuarios"], queryFn: () => listar() });
 
   const mBloq = useMutation({
@@ -172,6 +174,11 @@ function UsuariosPanel() {
   const mAdm = useMutation({
     mutationFn: (v: { userId: string; admin: boolean }) => adm({ data: v }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["usuarios"] }); toast.success("Atualizado"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const mDel = useMutation({
+    mutationFn: (userId: string) => del({ data: { userId } }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["usuarios"] }); toast.success("Usuário excluído"); },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -202,6 +209,13 @@ function UsuariosPanel() {
                     <Button size="sm" variant="ghost" title={isAdmin ? "Remover admin" : "Tornar admin"}
                       onClick={() => mAdm.mutate({ userId: u.id, admin: !isAdmin })}>
                       {isAdmin ? <ShieldOff className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
+                    </Button>
+                    <Button size="sm" variant="ghost" title="Excluir usuário"
+                      onClick={() => {
+                        if (confirm(`Excluir permanentemente ${u.nome ?? u.email}? Todos os dados serão removidos.`))
+                          mDel.mutate(u.id);
+                      }}>
+                      <UserX className="w-4 h-4 text-destructive" />
                     </Button>
                   </TableCell>
                 </TableRow>
