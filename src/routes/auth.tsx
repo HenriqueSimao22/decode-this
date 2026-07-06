@@ -100,7 +100,7 @@ function AuthPage() {
         <div className="text-center mb-8">
           <Link to="/" className="inline-block">
             <h1 className="text-4xl font-serif font-semibold text-foreground">Livro Caixa</h1>
-            <p className="text-sm text-muted-foreground mt-1">Seu controle financeiro pessoal, online e seguro</p>
+            <p className="text-sm text-muted-foreground mt-1">Controle financeiro inteligente</p>
           </Link>
         </div>
         <Card className="border-border/60">

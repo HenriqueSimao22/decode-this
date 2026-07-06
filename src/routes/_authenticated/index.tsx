@@ -4,8 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { resumoDashboard } from "@/lib/livrocaixa.functions";
 import { resumoContas } from "@/lib/contas.functions";
+import { listarCartoes } from "@/lib/cartoes.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { CreditCard } from "lucide-react";
+import { getBanco } from "@/lib/bancos";
 import { Bar, Doughnut } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -39,6 +43,8 @@ function Dashboard() {
     queryKey: ["resumoContas"],
     queryFn: () => resumoContasFn(),
   });
+  const cartoesFn = useServerFn(listarCartoes);
+  const { data: cartoes } = useQuery({ queryKey: ["cartoes"], queryFn: () => cartoesFn() });
 
   const mesAtual = new Date().getMonth();
   const agregados = useMemo(() => {
@@ -158,6 +164,59 @@ function Dashboard() {
           <div className="grow" />
           <Link to="/contas" className="text-sm underline underline-offset-4">Ver contas →</Link>
         </Card>
+      )}
+
+      {(cartoes ?? []).length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-serif text-xl font-semibold flex items-center gap-2">
+              <CreditCard className="w-5 h-5" /> Cartões de crédito
+            </h2>
+            <Link to="/cartoes" className="text-sm underline underline-offset-4">Ver todos →</Link>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {(cartoes ?? []).filter((c: any) => c.ativo !== false).map((c: any) => {
+              const banco = getBanco(c.banco);
+              const usado = Number(c.total_em_aberto ?? 0);
+              const limite = Number(c.limite ?? 0);
+              const pct = limite > 0 ? Math.min(100, (usado / limite) * 100) : 0;
+              const alto = pct >= 80;
+              return (
+                <Link key={c.id} to="/cartoes/$id" params={{ id: c.id }}>
+                  <Card className="p-4 space-y-3 hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold text-white shrink-0"
+                        style={{ background: c.cor ?? banco?.cor ?? "#333" }}
+                      >
+                        {banco?.inicial ?? c.nome.slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm truncate">{c.nome}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {banco?.nome ?? c.banco}
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-xs mb-1.5">
+                        <span className="text-muted-foreground">Limite usado</span>
+                        <span className={`font-mono font-medium ${alto ? "text-[color:var(--color-despesa)]" : ""}`}>
+                          {pct.toFixed(0)}%
+                        </span>
+                      </div>
+                      <Progress value={pct} className={alto ? "[&>div]:bg-[color:var(--color-despesa)]" : ""} />
+                      <div className="flex justify-between text-xs mt-1.5 font-mono">
+                        <span className="text-muted-foreground">{formatBRL(usado)}</span>
+                        <span className="text-muted-foreground">/ {limite > 0 ? formatBRL(limite) : "—"}</span>
+                      </div>
+                    </div>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
