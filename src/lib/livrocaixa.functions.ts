@@ -24,7 +24,7 @@ export const atualizarPerfil = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({
       nome: z.string().trim().min(1).max(100).optional(),
-      tema: z.enum(["claro", "escuro"]).optional(),
+      tema: z.enum(["claro", "pergaminho", "escuro"]).optional(),
     }).parse(d),
   )
   .handler(async ({ data, context }) => {
