@@ -6,7 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getPerfil } from "@/lib/livrocaixa.functions";
 import { souAdmin } from "@/lib/admin.functions";
 import { listarWorkspaces, trocarWorkspaceAtivo } from "@/lib/workspaces.functions";
-import { LogOut, LayoutDashboard, Wallet, Settings, Moon, Sun, Shield, CalendarClock, Users, Check, ChevronDown, CreditCard } from "lucide-react";
+import { LogOut, LayoutDashboard, Wallet, Settings, Shield, CalendarClock, Users, Check, ChevronDown, CreditCard } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
