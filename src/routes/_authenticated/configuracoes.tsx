@@ -37,7 +37,7 @@ function ConfigPage() {
   });
 
   const salvarTema = useMutation({
-    mutationFn: (t: "claro" | "escuro") => atualizarFn({ data: { tema: t } }),
+    mutationFn: (t: "claro" | "pergaminho" | "escuro") => atualizarFn({ data: { tema: t } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["perfil"] }),
   });
 
@@ -105,9 +105,29 @@ function ConfigPage() {
 
       <Card className="p-6 space-y-4">
         <h2 className="font-serif text-xl font-semibold">Tema</h2>
-        <div className="flex gap-2">
-          <Button variant={perfil?.tema === "claro" ? "default" : "outline"} onClick={() => salvarTema.mutate("claro")}>Claro</Button>
-          <Button variant={perfil?.tema === "escuro" ? "default" : "outline"} onClick={() => salvarTema.mutate("escuro")}>Escuro</Button>
+        <p className="text-sm text-muted-foreground">O sidebar acompanha o tema escolhido.</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <TemaCard
+            ativo={perfil?.tema === "claro"}
+            onClick={() => salvarTema.mutate("claro")}
+            nome="Claro"
+            desc="Branco limpo com acento dourado"
+            paleta={["#ffffff", "#f5f4ef", "#c9a84c", "#1f1a13"]}
+          />
+          <TemaCard
+            ativo={perfil?.tema === "pergaminho"}
+            onClick={() => salvarTema.mutate("pergaminho")}
+            nome="Pergaminho"
+            desc="Papel bege retrô, vibe livro-caixa"
+            paleta={["#faf6ec", "#efe6d0", "#7a5a2e", "#2a231a"]}
+          />
+          <TemaCard
+            ativo={perfil?.tema === "escuro"}
+            onClick={() => salvarTema.mutate("escuro")}
+            nome="Obsidian Gold"
+            desc="Preto profundo com dourado quente"
+            paleta={["#0a0a0a", "#171512", "#c9a84c", "#f0d78c"]}
+          />
         </div>
       </Card>
 
@@ -135,5 +155,33 @@ function ConfigPage() {
         </div>
       </Card>
     </div>
+  );
+}
+
+function TemaCard({
+  ativo, onClick, nome, desc, paleta,
+}: {
+  ativo: boolean;
+  onClick: () => void;
+  nome: string;
+  desc: string;
+  paleta: [string, string, string, string];
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-left p-4 rounded-lg border-2 transition-all ${
+        ativo ? "border-primary shadow-sm" : "border-border hover:border-primary/40"
+      }`}
+    >
+      <div className="flex gap-1 mb-3 h-8 rounded overflow-hidden">
+        {paleta.map((c) => (
+          <div key={c} className="flex-1" style={{ background: c }} />
+        ))}
+      </div>
+      <div className="font-serif text-lg font-semibold">{nome}</div>
+      <div className="text-xs text-muted-foreground mt-0.5">{desc}</div>
+    </button>
   );
 }
