@@ -27,3 +27,21 @@ O projeto já usava 3 temas via classes no `<html>` (`:root` = claro, `.pergamin
 **Validação:** build de produção (`npx vite build`) executado com sucesso, sem erros.
 
 **Observação:** o hover dos botões (`bg-primary/90`, etc.) já era feito por opacidade (padrão do componente `Button` do shadcn) — não foi alterado, pois isso exigiria tocar em JS/componentes, fora do escopo pedido.
+
+---
+
+## 2026-07-16 — Tema Rústico (`.pergaminho`) passou a ter fundo escuro
+
+**Arquivo alterado:** `src/styles.css`
+
+**Pedido:** manter a identidade "livro-caixa antigo" (couro, madeira, dourado), mas com fundo escuro em vez do bege claro.
+
+**O que mudou:**
+- Fundo: de `#F5EFE2` (bege claro) → `#211811` (madeira/couro escuro).
+- Cards: `#2B2116`, um tom de "capa de couro" ligeiramente mais claro que o fundo.
+- Sidebar: `#160F09`, ainda mais escura, como a lombada do livro.
+- Texto principal: `#E4D5B7` (creme/pergaminho), para leitura confortável sobre o fundo escuro.
+- Cor primária (botões): dourado fosco `#B08D57` (mantido), agora com texto escuro em cima (`#2E2A26`) — efeito de "letras douradas gravadas".
+- Verde (receita), vermelho/ferrugem (despesa) e azul petróleo (investimentos) foram clareados em relação à versão clara, para continuarem legíveis sobre o fundo escuro, mantendo a mesma identidade de cor.
+
+**Validação:** build de produção rodado novamente, sem erros.
