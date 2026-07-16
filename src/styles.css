@@ -111,41 +111,42 @@
 
 /* Tema RÚSTICO (Livro Antigo) — papel envelhecido, couro e madeira nobre (o antigo "pergaminho") */
 .pergaminho {
-  --background: oklch(0.953 0.018 86.1); /* #F5EFE2 */
-  --foreground: oklch(0.288 0.009 67.4); /* #2E2A26 */
-  --card: oklch(0.919 0.033 83.7); /* #EFE3CC */
-  --card-foreground: oklch(0.288 0.009 67.4);
-  --popover: oklch(0.919 0.033 83.7);
-  --popover-foreground: oklch(0.288 0.009 67.4);
-  --primary: oklch(0.45 0.049 39.2); /* #6D4C41 */
-  --primary-foreground: oklch(0.953 0.018 86.1);
-  --secondary: oklch(0.566 0.043 40.4); /* #8D6E63 */
-  --secondary-foreground: oklch(0.953 0.018 86.1);
-  --muted: oklch(0.898 0.035 84.6); /* #E8DCC4 */
-  --muted-foreground: oklch(0.443 0.024 64.7); /* #5D5146 */
-  --accent: oklch(0.827 0.049 82.7); /* #D6C4A3 (linhas/divisórias reaproveitado como hover) */
-  --accent-foreground: oklch(0.288 0.009 67.4);
-  --destructive: oklch(0.522 0.134 24); /* #A94442 — vermelho ferrugem, tinta de livro-caixa antigo */
-  --destructive-foreground: oklch(0.953 0.018 86.1);
-  --border: oklch(0.827 0.049 82.7); /* #D6C4A3 */
-  --input: oklch(0.778 0.058 82.8); /* #C9B48D */
+  /* Livro-caixa antigo à luz de vela: couro e madeira escura, letras em creme/dourado */
+  --background: oklch(0.218 0.020 59.4); /* #211811 madeira/couro escuro */
+  --foreground: oklch(0.877 0.043 84.6); /* #E4D5B7 creme/pergaminho */
+  --card: oklch(0.256 0.025 69.0); /* #2B2116 capa de couro */
+  --card-foreground: oklch(0.877 0.043 84.6);
+  --popover: oklch(0.256 0.025 69.0);
+  --popover-foreground: oklch(0.877 0.043 84.6);
+  --primary: oklch(0.664 0.083 77.4); /* #B08D57 dourado fosco */
+  --primary-foreground: oklch(0.288 0.009 67.4); /* #2E2A26 texto escuro sobre o dourado */
+  --secondary: oklch(0.310 0.029 70.7); /* #3A2E20 */
+  --secondary-foreground: oklch(0.877 0.043 84.6);
+  --muted: oklch(0.255 0.021 66.6); /* #2A2118 */
+  --muted-foreground: oklch(0.673 0.043 69.4); /* #A8927A */
+  --accent: oklch(0.319 0.032 72.0); /* #3D3020 hover */
+  --accent-foreground: oklch(0.877 0.043 84.6);
+  --destructive: oklch(0.593 0.134 21.4); /* #C1595A ferrugem clareado p/ legibilidade no escuro */
+  --destructive-foreground: oklch(0.98 0.012 85);
+  --border: oklch(0.361 0.037 69.5); /* #4A3A28 */
+  --input: oklch(0.303 0.029 70.7); /* #382C1E */
   --ring: oklch(0.664 0.083 77.4); /* #B08D57 dourado fosco */
-  --receita: oklch(0.546 0.076 137.4); /* #5B7B4F verde musgo/floresta */
-  --despesa: oklch(0.522 0.134 24); /* #A94442 vermelho ferrugem discreto */
+  --receita: oklch(0.653 0.077 134.8); /* #7C9B6B musgo claro, legível no escuro */
+  --despesa: oklch(0.593 0.134 21.4); /* #C1595A ferrugem clareado */
   --dourado: oklch(0.664 0.083 77.4); /* #B08D57 */
-  --chart-1: oklch(0.546 0.076 137.4);
-  --chart-2: oklch(0.522 0.134 24);
-  --chart-3: oklch(0.492 0.037 222); /* #4A6670 azul petróleo envelhecido */
-  --chart-4: oklch(0.435 0.064 140.1); /* #3E5A38 verde escuro */
+  --chart-1: oklch(0.653 0.077 134.8);
+  --chart-2: oklch(0.593 0.134 21.4);
+  --chart-3: oklch(0.640 0.045 221.5); /* #6E93A0 azul petróleo envelhecido, clareado */
+  --chart-4: oklch(0.534 0.093 139.8); /* #4F7A45 verde escuro, ainda legível */
   --chart-5: oklch(0.664 0.083 77.4);
-  /* Sidebar/cabeçalho em couro/madeira escura */
-  --sidebar: oklch(0.354 0.039 33.5); /* #4E342E */
-  --sidebar-foreground: oklch(0.953 0.018 86.1);
+  /* Sidebar ainda mais escura que o fundo, tipo lombada do livro */
+  --sidebar: oklch(0.176 0.017 62.1); /* #160F09 */
+  --sidebar-foreground: oklch(0.877 0.043 84.6);
   --sidebar-primary: oklch(0.664 0.083 77.4); /* dourado fosco */
-  --sidebar-primary-foreground: oklch(0.288 0.009 67.4);
-  --sidebar-accent: oklch(0.402 0.044 38); /* #5D4037 — tom do "cabeçalho" usado como hover da sidebar */
-  --sidebar-accent-foreground: oklch(0.953 0.018 86.1);
-  --sidebar-border: oklch(0.353 0.032 42.8); /* #4A362E */
+  --sidebar-primary-foreground: oklch(0.176 0.017 62.1);
+  --sidebar-accent: oklch(0.227 0.024 66.1); /* #241A10 hover */
+  --sidebar-accent-foreground: oklch(0.877 0.043 84.6);
+  --sidebar-border: oklch(0.361 0.037 69.5); /* #4A3A28 */
   --sidebar-ring: oklch(0.664 0.083 77.4);
 }
 
