@@ -13,7 +13,6 @@ import {
 } from "@/lib/cartoes.functions";
 import { listarMembrosAtivos } from "@/lib/workspaces.functions";
 import { listarCategorias } from "@/lib/livrocaixa.functions";
-import { AuthorBadge } from "@/components/livrocaixa/author-badge";
 import { CartaoModal } from "@/components/livrocaixa/cartao-modal";
 import { CompraCartaoModal } from "@/components/livrocaixa/compra-cartao-modal";
 import { Card } from "@/components/ui/card";
@@ -25,7 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatBRL } from "@/components/livrocaixa/transacao-modal";
 import { getBanco, BANDEIRAS } from "@/lib/bancos";
-import { ArrowLeft, Trash2, Pencil, Plus, RotateCcw, CheckCircle2, Archive, ArchiveRestore, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Trash2, Pencil, Plus, RotateCcw, CheckCircle2, Archive, ArchiveRestore, AlertTriangle, CreditCard, X } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/cartoes/$id")({
@@ -218,8 +217,9 @@ function CartaoDetalhe() {
           const parcelaLabel = l.parcelas_total > 1 ? ` · ${l.parcela_atual}/${l.parcelas_total}` : "";
           return (
             <div key={l.id} className="p-4 flex items-center gap-4">
-              <div className="w-2 h-10 rounded" style={{ background: "var(--color-despesa)" }} />
-              <AuthorBadge autor={autor as any} />
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--color-despesa)", opacity: 0.85 }}>
+                <CreditCard className="w-4 h-4 text-white" />
+              </div>
               <div className="flex-1 min-w-0">
                 <div className="font-medium truncate">{l.descricao}{parcelaLabel}</div>
                 <div className="text-xs text-muted-foreground truncate">
@@ -228,7 +228,7 @@ function CartaoDetalhe() {
                   {autor && <> · por {(autor as any).nome}</>}
                 </div>
               </div>
-              <div className="font-mono font-semibold text-[color:var(--color-despesa)]">− {formatBRL(Number(l.valor_parcela))}</div>
+              <div className="font-mono font-semibold text-[color:var(--color-despesa)]">{formatBRL(Number(l.valor_parcela))}</div>
               <button
                 onClick={() => {
                   const escopoGrupo = l.parcelas_total > 1
@@ -237,10 +237,10 @@ function CartaoDetalhe() {
                   if (l.parcelas_total === 1 && !confirm("Excluir esta compra?")) return;
                   del.mutate({ id: l.id, escopo: escopoGrupo ? "grupo" : "uma" });
                 }}
-                className="p-2 hover:bg-destructive/10 text-destructive rounded"
+                className="p-2 hover:bg-accent rounded-full text-muted-foreground hover:text-destructive"
                 aria-label="Excluir"
               >
-                <Trash2 className="w-4 h-4" />
+                <X className="w-4 h-4" />
               </button>
             </div>
           );
