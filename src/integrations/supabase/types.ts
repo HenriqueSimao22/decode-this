@@ -55,6 +55,7 @@ export type Database = {
           ativo: boolean
           banco: string
           bandeira: string
+          bloqueado: boolean
           cor: string
           created_at: string
           criado_por: string | null
@@ -70,6 +71,7 @@ export type Database = {
           ativo?: boolean
           banco: string
           bandeira: string
+          bloqueado?: boolean
           cor?: string
           created_at?: string
           criado_por?: string | null
@@ -85,6 +87,7 @@ export type Database = {
           ativo?: boolean
           banco?: string
           bandeira?: string
+          bloqueado?: boolean
           cor?: string
           created_at?: string
           criado_por?: string | null
@@ -219,6 +222,185 @@ export type Database = {
           },
           {
             foreignKeyName: "contas_workspace_fk"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      investimentos: {
+        Row: {
+          arquivado: boolean
+          atualizado_em: string | null
+          cor: string
+          created_at: string
+          criado_por: string | null
+          id: string
+          nome: string
+          observacao: string | null
+          preco_medio: number
+          quantidade: number
+          ticker: string | null
+          tipo: string
+          updated_at: string
+          valor_atual_unitario: number | null
+          workspace_id: string
+        }
+        Insert: {
+          arquivado?: boolean
+          atualizado_em?: string | null
+          cor?: string
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          nome: string
+          observacao?: string | null
+          preco_medio?: number
+          quantidade?: number
+          ticker?: string | null
+          tipo: string
+          updated_at?: string
+          valor_atual_unitario?: number | null
+          workspace_id: string
+        }
+        Update: {
+          arquivado?: boolean
+          atualizado_em?: string | null
+          cor?: string
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          nome?: string
+          observacao?: string | null
+          preco_medio?: number
+          quantidade?: number
+          ticker?: string | null
+          tipo?: string
+          updated_at?: string
+          valor_atual_unitario?: number | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "investimentos_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      metas: {
+        Row: {
+          arquivada: boolean
+          categoria_id: string | null
+          concluida: boolean
+          cor: string
+          created_at: string
+          criado_por: string | null
+          icone: string
+          id: string
+          nome: string
+          prazo: string | null
+          tipo: string
+          updated_at: string
+          valor_alvo: number
+          valor_atual: number
+          workspace_id: string
+        }
+        Insert: {
+          arquivada?: boolean
+          categoria_id?: string | null
+          concluida?: boolean
+          cor?: string
+          created_at?: string
+          criado_por?: string | null
+          icone?: string
+          id?: string
+          nome: string
+          prazo?: string | null
+          tipo?: string
+          updated_at?: string
+          valor_alvo: number
+          valor_atual?: number
+          workspace_id: string
+        }
+        Update: {
+          arquivada?: boolean
+          categoria_id?: string | null
+          concluida?: boolean
+          cor?: string
+          created_at?: string
+          criado_por?: string | null
+          icone?: string
+          id?: string
+          nome?: string
+          prazo?: string | null
+          tipo?: string
+          updated_at?: string
+          valor_alvo?: number
+          valor_atual?: number
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metas_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "metas_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      metas_aportes: {
+        Row: {
+          created_at: string
+          criado_por: string | null
+          data: string
+          id: string
+          meta_id: string
+          observacao: string | null
+          valor: number
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          criado_por?: string | null
+          data?: string
+          id?: string
+          meta_id: string
+          observacao?: string | null
+          valor: number
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string | null
+          data?: string
+          id?: string
+          meta_id?: string
+          observacao?: string | null
+          valor?: number
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metas_aportes_meta_id_fkey"
+            columns: ["meta_id"]
+            isOneToOne: false
+            referencedRelation: "metas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "metas_aportes_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"

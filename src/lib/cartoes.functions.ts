@@ -74,6 +74,28 @@ async function ensureFatura(
   return { id: created.id, ...datas };
 }
 
+// Recalcula se o cartão deve ficar bloqueado (total em aberto > limite) e persiste o estado.
+async function recalcularBloqueio(supabase: any, cartaoId: string) {
+  const { data: cartao } = await supabase
+    .from("cartoes")
+    .select("id, limite, bloqueado")
+    .eq("id", cartaoId)
+    .maybeSingle();
+  if (!cartao) return { bloqueado: false, total: 0 };
+  const { data: linhas } = await supabase
+    .from("transacoes_cartao")
+    .select("valor_parcela, fatura_id, faturas!inner(status)")
+    .eq("cartao_id", cartaoId);
+  const total = (linhas ?? [])
+    .filter((l: any) => l.faturas?.status !== "paga")
+    .reduce((a: number, l: any) => a + Number(l.valor_parcela), 0);
+  const deveBloquear = cartao.limite != null && total > Number(cartao.limite);
+  if (deveBloquear !== cartao.bloqueado) {
+    await supabase.from("cartoes").update({ bloqueado: deveBloquear }).eq("id", cartaoId);
+  }
+  return { bloqueado: deveBloquear, total };
+}
+
 // --------- CRUD Cartões ---------
 export const listarCartoes = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -81,7 +103,7 @@ export const listarCartoes = createServerFn({ method: "GET" })
     const wid = await getActiveWorkspaceId(context.supabase, context.userId);
     const { data: cartoes, error } = await context.supabase
       .from("cartoes")
-      .select("id, nome, banco, bandeira, cor, limite, dia_fechamento, dia_vencimento, ativo, criado_por, created_at")
+      .select("id, nome, banco, bandeira, cor, limite, dia_fechamento, dia_vencimento, ativo, bloqueado, criado_por, created_at")
       .eq("workspace_id", wid)
       .order("created_at", { ascending: true });
     if (error) throw new Error(error.message);
@@ -191,7 +213,7 @@ export const verFatura = createServerFn({ method: "POST" })
     const wid = await getActiveWorkspaceId(context.supabase, context.userId);
     const { data: cartao, error: eC } = await context.supabase
       .from("cartoes")
-      .select("id, nome, banco, bandeira, cor, limite, dia_fechamento, dia_vencimento, ativo, workspace_id")
+      .select("id, nome, banco, bandeira, cor, limite, dia_fechamento, dia_vencimento, ativo, bloqueado, workspace_id")
       .eq("id", data.cartao_id)
       .maybeSingle();
     if (eC) throw new Error(eC.message);
@@ -240,11 +262,14 @@ export const lancarCompraCartao = createServerFn({ method: "POST" })
     const wid = await getActiveWorkspaceId(context.supabase, context.userId);
     const { data: cartao, error: eC } = await context.supabase
       .from("cartoes")
-      .select("id, workspace_id, dia_fechamento, dia_vencimento")
+      .select("id, workspace_id, dia_fechamento, dia_vencimento, limite, bloqueado")
       .eq("id", data.cartao_id)
       .maybeSingle();
     if (eC) throw new Error(eC.message);
     if (!cartao) throw new Error("Cartão não encontrado");
+    if (cartao.bloqueado) {
+      throw new Error("Cartão bloqueado por limite excedido. Pague a fatura para poder usar novamente.");
+    }
 
     const valorParcela = Math.round((data.valor_total / data.parcelas) * 100) / 100;
     // ajuste de centavos na última
@@ -277,7 +302,8 @@ export const lancarCompraCartao = createServerFn({ method: "POST" })
     }
     const { error } = await context.supabase.from("transacoes_cartao").insert(linhas);
     if (error) throw new Error(error.message);
-    return { ok: true, grupo_compra_id };
+    const { bloqueado, total } = await recalcularBloqueio(context.supabase, cartao.id);
+    return { ok: true, grupo_compra_id, bloqueado, total_em_aberto: total, limite: cartao.limite };
   });
 
 export const excluirCompraCartao = createServerFn({ method: "POST" })
@@ -289,23 +315,25 @@ export const excluirCompraCartao = createServerFn({ method: "POST" })
     }).parse(d),
   )
   .handler(async ({ data, context }) => {
+    const { data: origem } = await context.supabase
+      .from("transacoes_cartao")
+      .select("cartao_id, grupo_compra_id")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (!origem) throw new Error("Compra não encontrada");
+
     if (data.escopo === "uma") {
       const { error } = await context.supabase.from("transacoes_cartao").delete().eq("id", data.id);
       if (error) throw new Error(error.message);
-      return { ok: true };
+    } else {
+      const { error } = await context.supabase
+        .from("transacoes_cartao")
+        .delete()
+        .eq("grupo_compra_id", origem.grupo_compra_id);
+      if (error) throw new Error(error.message);
     }
-    const { data: linha } = await context.supabase
-      .from("transacoes_cartao")
-      .select("grupo_compra_id")
-      .eq("id", data.id)
-      .maybeSingle();
-    if (!linha) throw new Error("Compra não encontrada");
-    const { error } = await context.supabase
-      .from("transacoes_cartao")
-      .delete()
-      .eq("grupo_compra_id", linha.grupo_compra_id);
-    if (error) throw new Error(error.message);
-    return { ok: true };
+    const { bloqueado } = await recalcularBloqueio(context.supabase, origem.cartao_id);
+    return { ok: true, bloqueado };
   });
 
 // --------- Pagar fatura ---------
@@ -362,7 +390,51 @@ export const pagarFatura = createServerFn({ method: "POST" })
       })
       .eq("id", data.fatura_id);
     if (eUp) throw new Error(eUp.message);
+    await recalcularBloqueio(context.supabase, fatura.cartao_id);
     return { ok: true, transacao_id: trx.id };
+  });
+
+// --------- Faturas espelhadas na aba Contas ---------
+const MESES_ABREV = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+
+export const listarFaturasComoContas = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
+    const { data: faturas, error } = await context.supabase
+      .from("faturas")
+      .select("id, cartao_id, mes_referencia, data_vencimento, status, cartoes(nome, cor)")
+      .eq("workspace_id", wid)
+      .neq("status", "paga")
+      .order("data_vencimento", { ascending: true });
+    if (error) throw new Error(error.message);
+    const ids = (faturas ?? []).map((f: any) => f.id);
+    if (ids.length === 0) return [];
+    const { data: linhas } = await context.supabase
+      .from("transacoes_cartao")
+      .select("fatura_id, valor_parcela")
+      .in("fatura_id", ids);
+    const totais = new Map<string, number>();
+    for (const l of linhas ?? []) {
+      totais.set(l.fatura_id, (totais.get(l.fatura_id) ?? 0) + Number(l.valor_parcela));
+    }
+    return (faturas ?? [])
+      .map((f: any) => {
+        const [, mes] = f.mes_referencia.split("-");
+        const valor = totais.get(f.id) ?? 0;
+        return {
+          id: f.id,
+          origem: "fatura" as const,
+          cartao_id: f.cartao_id,
+          tipo: "pagar" as const,
+          descricao: `Fatura ${MESES_ABREV[Number(mes) - 1]} — ${f.cartoes?.nome ?? "Cartão"}`,
+          valor,
+          vencimento: f.data_vencimento,
+          status_fatura: f.status as "aberta" | "fechada",
+          cor: f.cartoes?.cor ?? null,
+        };
+      })
+      .filter((f: any) => f.valor > 0);
   });
 
 export const desfazerPagamentoFatura = createServerFn({ method: "POST" })
@@ -371,7 +443,7 @@ export const desfazerPagamentoFatura = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: fatura } = await context.supabase
       .from("faturas")
-      .select("id, transacao_pagamento_id, data_fechamento")
+      .select("id, cartao_id, transacao_pagamento_id, data_fechamento")
       .eq("id", data.fatura_id)
       .maybeSingle();
     if (!fatura) throw new Error("Fatura não encontrada");
@@ -385,5 +457,6 @@ export const desfazerPagamentoFatura = createServerFn({ method: "POST" })
       .update({ status: novoStatus, pago_em: null, transacao_pagamento_id: null })
       .eq("id", data.fatura_id);
     if (error) throw new Error(error.message);
+    await recalcularBloqueio(context.supabase, fatura.cartao_id);
     return { ok: true };
   });

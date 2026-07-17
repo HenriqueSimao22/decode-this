@@ -58,8 +58,14 @@ export function CompraCartaoModal({
           observacao: obs.trim() || null,
         },
       }),
-    onSuccess: () => {
-      toast.success("Compra lançada");
+    onSuccess: (res: any) => {
+      if (res?.bloqueado) {
+        toast.warning("Limite excedido — cartão bloqueado", {
+          description: "A compra foi lançada, mas o limite foi ultrapassado. Novas compras ficarão bloqueadas até o pagamento da fatura.",
+        });
+      } else {
+        toast.success("Compra lançada");
+      }
       qc.invalidateQueries({ queryKey: ["fatura"] });
       qc.invalidateQueries({ queryKey: ["cartoes"] });
       qc.invalidateQueries({ queryKey: ["faturas"] });

@@ -14,6 +14,8 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedTransacoesRouteImport } from './routes/_authenticated/transacoes'
+import { Route as AuthenticatedMetasRouteImport } from './routes/_authenticated/metas'
+import { Route as AuthenticatedInvestimentosRouteImport } from './routes/_authenticated/investimentos'
 import { Route as AuthenticatedContasRouteImport } from './routes/_authenticated/contas'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
 import { Route as AuthenticatedCartoesRouteImport } from './routes/_authenticated/cartoes'
@@ -45,6 +47,17 @@ const AuthenticatedTransacoesRoute = AuthenticatedTransacoesRouteImport.update({
   path: '/transacoes',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedMetasRoute = AuthenticatedMetasRouteImport.update({
+  id: '/metas',
+  path: '/metas',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedInvestimentosRoute =
+  AuthenticatedInvestimentosRouteImport.update({
+    id: '/investimentos',
+    path: '/investimentos',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedContasRoute = AuthenticatedContasRouteImport.update({
   id: '/contas',
   path: '/contas',
@@ -85,6 +98,8 @@ export interface FileRoutesByFullPath {
   '/cartoes': typeof AuthenticatedCartoesRouteWithChildren
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/contas': typeof AuthenticatedContasRoute
+  '/investimentos': typeof AuthenticatedInvestimentosRoute
+  '/metas': typeof AuthenticatedMetasRoute
   '/transacoes': typeof AuthenticatedTransacoesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/cartoes/$id': typeof AuthenticatedCartoesIdRoute
@@ -96,6 +111,8 @@ export interface FileRoutesByTo {
   '/cartoes': typeof AuthenticatedCartoesRouteWithChildren
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/contas': typeof AuthenticatedContasRoute
+  '/investimentos': typeof AuthenticatedInvestimentosRoute
+  '/metas': typeof AuthenticatedMetasRoute
   '/transacoes': typeof AuthenticatedTransacoesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/': typeof AuthenticatedIndexRoute
@@ -110,6 +127,8 @@ export interface FileRoutesById {
   '/_authenticated/cartoes': typeof AuthenticatedCartoesRouteWithChildren
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/_authenticated/contas': typeof AuthenticatedContasRoute
+  '/_authenticated/investimentos': typeof AuthenticatedInvestimentosRoute
+  '/_authenticated/metas': typeof AuthenticatedMetasRoute
   '/_authenticated/transacoes': typeof AuthenticatedTransacoesRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
@@ -125,6 +144,8 @@ export interface FileRouteTypes {
     | '/cartoes'
     | '/configuracoes'
     | '/contas'
+    | '/investimentos'
+    | '/metas'
     | '/transacoes'
     | '/workspace'
     | '/cartoes/$id'
@@ -136,6 +157,8 @@ export interface FileRouteTypes {
     | '/cartoes'
     | '/configuracoes'
     | '/contas'
+    | '/investimentos'
+    | '/metas'
     | '/transacoes'
     | '/workspace'
     | '/'
@@ -149,6 +172,8 @@ export interface FileRouteTypes {
     | '/_authenticated/cartoes'
     | '/_authenticated/configuracoes'
     | '/_authenticated/contas'
+    | '/_authenticated/investimentos'
+    | '/_authenticated/metas'
     | '/_authenticated/transacoes'
     | '/_authenticated/workspace'
     | '/_authenticated/'
@@ -196,6 +221,20 @@ declare module '@tanstack/react-router' {
       path: '/transacoes'
       fullPath: '/transacoes'
       preLoaderRoute: typeof AuthenticatedTransacoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/metas': {
+      id: '/_authenticated/metas'
+      path: '/metas'
+      fullPath: '/metas'
+      preLoaderRoute: typeof AuthenticatedMetasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/investimentos': {
+      id: '/_authenticated/investimentos'
+      path: '/investimentos'
+      fullPath: '/investimentos'
+      preLoaderRoute: typeof AuthenticatedInvestimentosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/contas': {
@@ -259,6 +298,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCartoesRoute: typeof AuthenticatedCartoesRouteWithChildren
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
   AuthenticatedContasRoute: typeof AuthenticatedContasRoute
+  AuthenticatedInvestimentosRoute: typeof AuthenticatedInvestimentosRoute
+  AuthenticatedMetasRoute: typeof AuthenticatedMetasRoute
   AuthenticatedTransacoesRoute: typeof AuthenticatedTransacoesRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
@@ -270,6 +311,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCartoesRoute: AuthenticatedCartoesRouteWithChildren,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
   AuthenticatedContasRoute: AuthenticatedContasRoute,
+  AuthenticatedInvestimentosRoute: AuthenticatedInvestimentosRoute,
+  AuthenticatedMetasRoute: AuthenticatedMetasRoute,
   AuthenticatedTransacoesRoute: AuthenticatedTransacoesRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
@@ -286,3 +329,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

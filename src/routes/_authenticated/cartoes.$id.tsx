@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatBRL } from "@/components/livrocaixa/transacao-modal";
 import { getBanco, BANDEIRAS } from "@/lib/bancos";
-import { ArrowLeft, Trash2, Pencil, Plus, RotateCcw, CheckCircle2, Archive, ArchiveRestore } from "lucide-react";
+import { ArrowLeft, Trash2, Pencil, Plus, RotateCcw, CheckCircle2, Archive, ArchiveRestore, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/cartoes/$id")({
@@ -97,6 +97,7 @@ function CartaoDetalhe() {
   const bandeiraNome = (c: string) => BANDEIRAS.find((b) => b.codigo === c)?.nome ?? c;
   const hoje = new Date().toISOString().slice(0, 10);
   const podePagar = fatura && fatura.id && fatura.status !== "paga" && total > 0;
+  const excedeuLimite = !!cartao && cartao.limite != null && total > Number(cartao.limite);
 
   if (!cartao) return <p className="text-sm text-muted-foreground">Carregando...</p>;
 
@@ -140,6 +141,16 @@ function CartaoDetalhe() {
         ) : null}
       </Card>
 
+      {cartao.bloqueado && (
+        <Card className="p-4 flex items-center gap-3 border-[color:var(--color-destructive)] bg-[color:var(--color-destructive)]/10">
+          <AlertTriangle className="w-5 h-5 shrink-0 text-[color:var(--color-destructive)]" />
+          <div className="text-sm">
+            <p className="font-medium text-[color:var(--color-destructive)]">Cartão bloqueado — limite excedido</p>
+            <p className="text-muted-foreground">Pague a fatura para liberar novas compras neste cartão.</p>
+          </div>
+        </Card>
+      )}
+
       <Card className="p-4">
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => mudarMes(-1)}>‹</Button>
@@ -155,15 +166,25 @@ function CartaoDetalhe() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="p-5">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Total da fatura</p>
-          <p className="font-mono text-2xl font-bold mt-2">{formatBRL(total)}</p>
-          <div className="mt-2">
+          <p className={`font-mono text-2xl font-bold mt-2 ${excedeuLimite ? "text-[color:var(--color-destructive)]" : ""}`}>
+            {excedeuLimite ? "− " : ""}{formatBRL(total)}
+          </p>
+          {excedeuLimite && (
+            <p className="text-xs text-[color:var(--color-destructive)] mt-1">
+              Excede o limite em {formatBRL(total - Number(cartao.limite))}
+            </p>
+          )}
+          <div className="mt-2 flex gap-2">
             {fatura!.status === "paga" ? <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Paga</Badge>
               : fatura!.data_fechamento <= hoje ? <Badge variant="secondary">Fechada</Badge>
               : <Badge variant="outline">Em aberto</Badge>}
+            {cartao.bloqueado && <Badge variant="destructive">Bloqueado</Badge>}
           </div>
         </Card>
         <Card className="p-5 md:col-span-2 flex items-center gap-2 flex-wrap">
-          <Button onClick={() => setNovaCompra(true)}><Plus className="w-4 h-4 mr-1" /> Nova compra</Button>
+          <Button onClick={() => setNovaCompra(true)} disabled={cartao.bloqueado} title={cartao.bloqueado ? "Cartão bloqueado por limite excedido" : undefined}>
+            <Plus className="w-4 h-4 mr-1" /> Nova compra
+          </Button>
           {podePagar && <Button variant="outline" onClick={() => setPagar(true)}><CheckCircle2 className="w-4 h-4 mr-1" /> Pagar fatura</Button>}
           {fatura!.status === "paga" && (
             <Button variant="outline" onClick={() => confirm("Desfazer o pagamento desta fatura?") && desfazer.mutate()}>
@@ -183,6 +204,7 @@ function CartaoDetalhe() {
           const parcelaLabel = l.parcelas_total > 1 ? ` · ${l.parcela_atual}/${l.parcelas_total}` : "";
           return (
             <div key={l.id} className="p-4 flex items-center gap-4">
+              <div className="w-2 h-10 rounded" style={{ background: "var(--color-despesa)" }} />
               <AuthorBadge autor={autor as any} />
               <div className="flex-1 min-w-0">
                 <div className="font-medium truncate">{l.descricao}{parcelaLabel}</div>
@@ -192,7 +214,7 @@ function CartaoDetalhe() {
                   {autor && <> · por {(autor as any).nome}</>}
                 </div>
               </div>
-              <div className="font-mono font-semibold">{formatBRL(Number(l.valor_parcela))}</div>
+              <div className="font-mono font-semibold text-[color:var(--color-despesa)]">− {formatBRL(Number(l.valor_parcela))}</div>
               <button
                 onClick={() => {
                   const escopoGrupo = l.parcelas_total > 1

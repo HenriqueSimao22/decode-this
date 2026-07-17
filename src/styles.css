@@ -111,43 +111,43 @@
 
 /* Tema RÚSTICO (Livro Antigo) — papel envelhecido, couro e madeira nobre (o antigo "pergaminho") */
 .pergaminho {
-  /* Livro-caixa antigo à luz de vela: couro e madeira escura, letras em creme/dourado */
-  --background: oklch(0.218 0.020 59.4); /* #211811 madeira/couro escuro */
-  --foreground: oklch(0.877 0.043 84.6); /* #E4D5B7 creme/pergaminho */
-  --card: oklch(0.256 0.025 69.0); /* #2B2116 capa de couro */
-  --card-foreground: oklch(0.877 0.043 84.6);
-  --popover: oklch(0.256 0.025 69.0);
-  --popover-foreground: oklch(0.877 0.043 84.6);
-  --primary: oklch(0.664 0.083 77.4); /* #B08D57 dourado fosco */
-  --primary-foreground: oklch(0.288 0.009 67.4); /* #2E2A26 texto escuro sobre o dourado */
-  --secondary: oklch(0.310 0.029 70.7); /* #3A2E20 */
-  --secondary-foreground: oklch(0.877 0.043 84.6);
-  --muted: oklch(0.255 0.021 66.6); /* #2A2118 */
-  --muted-foreground: oklch(0.673 0.043 69.4); /* #A8927A */
-  --accent: oklch(0.319 0.032 72.0); /* #3D3020 hover */
-  --accent-foreground: oklch(0.877 0.043 84.6);
-  --destructive: oklch(0.593 0.134 21.4); /* #C1595A ferrugem clareado p/ legibilidade no escuro */
+  /* Marrom café — elegante, rústico e moderno: grãos de café torrado + bronze */
+  --background: oklch(0.304 0.031 47.7); /* #3C2A21 café torrado */
+  --foreground: oklch(0.913 0.026 73.2); /* #EDE0D0 creme quente */
+  --card: oklch(0.352 0.035 52.2); /* #4A362A superfície elevada, café com leite escuro */
+  --card-foreground: oklch(0.913 0.026 73.2);
+  --popover: oklch(0.352 0.035 52.2);
+  --popover-foreground: oklch(0.913 0.026 73.2);
+  --primary: oklch(0.706 0.094 73.2); /* #C4975B bronze/dourado quente */
+  --primary-foreground: oklch(0.222 0.023 47.7); /* #241812 texto café escuro sobre o bronze */
+  --secondary: oklch(0.411 0.037 60.1); /* #5A4636 */
+  --secondary-foreground: oklch(0.913 0.026 73.2);
+  --muted: oklch(0.336 0.033 51.3); /* #453227 */
+  --muted-foreground: oklch(0.724 0.04 64.5); /* #B8A18C bege suave */
+  --accent: oklch(0.373 0.035 57.8); /* #4F3C2E hover */
+  --accent-foreground: oklch(0.913 0.026 73.2);
+  --destructive: oklch(0.565 0.128 27.8); /* #B5544A terracota */
   --destructive-foreground: oklch(0.98 0.012 85);
-  --border: oklch(0.361 0.037 69.5); /* #4A3A28 */
-  --input: oklch(0.303 0.029 70.7); /* #382C1E */
-  --ring: oklch(0.664 0.083 77.4); /* #B08D57 dourado fosco */
-  --receita: oklch(0.653 0.077 134.8); /* #7C9B6B musgo claro, legível no escuro */
-  --despesa: oklch(0.593 0.134 21.4); /* #C1595A ferrugem clareado */
-  --dourado: oklch(0.664 0.083 77.4); /* #B08D57 */
-  --chart-1: oklch(0.653 0.077 134.8);
-  --chart-2: oklch(0.593 0.134 21.4);
-  --chart-3: oklch(0.640 0.045 221.5); /* #6E93A0 azul petróleo envelhecido, clareado */
-  --chart-4: oklch(0.534 0.093 139.8); /* #4F7A45 verde escuro, ainda legível */
-  --chart-5: oklch(0.664 0.083 77.4);
-  /* Sidebar ainda mais escura que o fundo, tipo lombada do livro */
-  --sidebar: oklch(0.176 0.017 62.1); /* #160F09 */
-  --sidebar-foreground: oklch(0.877 0.043 84.6);
-  --sidebar-primary: oklch(0.664 0.083 77.4); /* dourado fosco */
-  --sidebar-primary-foreground: oklch(0.176 0.017 62.1);
-  --sidebar-accent: oklch(0.227 0.024 66.1); /* #241A10 hover */
-  --sidebar-accent-foreground: oklch(0.877 0.043 84.6);
-  --sidebar-border: oklch(0.361 0.037 69.5); /* #4A3A28 */
-  --sidebar-ring: oklch(0.664 0.083 77.4);
+  --border: oklch(0.411 0.037 60.1); /* #5A4636 */
+  --input: oklch(0.336 0.033 51.3); /* #453227 */
+  --ring: oklch(0.706 0.094 73.2); /* bronze */
+  --receita: oklch(0.714 0.078 133.9); /* #8FAE7C verde sálvia, combina com o café */
+  --despesa: oklch(0.565 0.128 27.8); /* #B5544A terracota */
+  --dourado: oklch(0.706 0.094 73.2); /* #C4975B */
+  --chart-1: oklch(0.714 0.078 133.9);
+  --chart-2: oklch(0.565 0.128 27.8);
+  --chart-3: oklch(0.653 0.041 246); /* #7C93A8 azul empoeirado */
+  --chart-4: oklch(0.545 0.072 137); /* #5C7A50 verde escuro */
+  --chart-5: oklch(0.706 0.094 73.2);
+  /* Sidebar mais escura, tipo "borra de café" */
+  --sidebar: oklch(0.245 0.024 49.5); /* #2A1D16 */
+  --sidebar-foreground: oklch(0.913 0.026 73.2);
+  --sidebar-primary: oklch(0.706 0.094 73.2); /* bronze */
+  --sidebar-primary-foreground: oklch(0.245 0.024 49.5);
+  --sidebar-accent: oklch(0.286 0.027 56.9); /* #35271D hover */
+  --sidebar-accent-foreground: oklch(0.913 0.026 73.2);
+  --sidebar-border: oklch(0.323 0.036 67.7); /* #40301F */
+  --sidebar-ring: oklch(0.706 0.094 73.2);
 }
 
 /* Tema ESCURO — #121212 / #1E1E1E, verde financeiro + destaques esmeralda */

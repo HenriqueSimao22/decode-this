@@ -5,10 +5,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { resumoDashboard } from "@/lib/livrocaixa.functions";
 import { resumoContas } from "@/lib/contas.functions";
 import { listarCartoes } from "@/lib/cartoes.functions";
+import { resumoMetas } from "@/lib/metas.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { CreditCard } from "lucide-react";
+import { CreditCard, Target } from "lucide-react";
 import { getBanco } from "@/lib/bancos";
 import { Bar, Doughnut } from "react-chartjs-2";
 import {
@@ -45,6 +46,8 @@ function Dashboard() {
   });
   const cartoesFn = useServerFn(listarCartoes);
   const { data: cartoes } = useQuery({ queryKey: ["cartoes"], queryFn: () => cartoesFn() });
+  const metasFn = useServerFn(resumoMetas);
+  const { data: metasResumo } = useQuery({ queryKey: ["resumoMetas"], queryFn: () => metasFn() });
 
   const mesAtual = new Date().getMonth();
   const agregados = useMemo(() => {
@@ -210,6 +213,41 @@ function Dashboard() {
                         <span className="text-muted-foreground">{formatBRL(usado)}</span>
                         <span className="text-muted-foreground">/ {limite > 0 ? formatBRL(limite) : "—"}</span>
                       </div>
+                    </div>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {(metasResumo ?? []).length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-serif text-xl font-semibold flex items-center gap-2">
+              <Target className="w-5 h-5" /> Metas
+            </h2>
+            <Link to="/metas" className="text-sm underline underline-offset-4">Ver todas →</Link>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+            {(metasResumo ?? []).map((m: any) => {
+              const estourou = m.tipo === "gasto_maximo" && m.valor_atual_calculado > Number(m.valor_alvo);
+              return (
+                <Link key={m.id} to="/metas">
+                  <Card className="p-4 space-y-2 hover:shadow-md transition-shadow">
+                    <div className="text-sm font-medium truncate">{m.nome}</div>
+                    <div className="h-2 bg-muted rounded overflow-hidden">
+                      <div
+                        className="h-full rounded transition-all"
+                        style={{ width: `${m.progresso_pct}%`, background: estourou ? "var(--color-despesa)" : m.cor }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className={`font-mono font-medium ${estourou ? "text-[color:var(--color-despesa)]" : ""}`}>
+                        {m.progresso_pct}%
+                      </span>
+                      <span className="text-muted-foreground font-mono">{formatBRL(m.valor_atual_calculado)} / {formatBRL(Number(m.valor_alvo))}</span>
                     </div>
                   </Card>
                 </Link>

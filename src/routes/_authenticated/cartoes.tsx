@@ -62,12 +62,14 @@ function CartoesPage() {
                 </div>
                 <div className="mt-6">
                   <p className="text-[10px] uppercase opacity-70">Fatura em aberto</p>
-                  <p className="font-mono text-2xl font-bold">{formatBRL(Number(c.total_em_aberto))}</p>
+                  <p className={`font-mono text-2xl font-bold ${c.bloqueado ? "text-red-200" : ""}`}>
+                    {c.bloqueado ? "− " : ""}{formatBRL(Number(c.total_em_aberto))}
+                  </p>
                 </div>
                 {c.limite ? (
                   <div className="mt-3">
                     <div className="h-1.5 bg-white/20 rounded overflow-hidden">
-                      <div className="h-full bg-white/80" style={{ width: `${usoPct}%` }} />
+                      <div className={`h-full ${c.bloqueado ? "bg-red-300" : "bg-white/80"}`} style={{ width: `${usoPct}%` }} />
                     </div>
                     <p className="text-[10px] opacity-70 mt-1">
                       {formatBRL(Number(c.total_em_aberto))} de {formatBRL(Number(c.limite))}
@@ -77,7 +79,10 @@ function CartoesPage() {
                 <p className="text-[10px] opacity-70 mt-2">
                   Fecha dia {c.dia_fechamento} · vence dia {c.dia_vencimento}
                 </p>
-                {!c.ativo && <Badge variant="secondary" className="absolute top-2 right-2 bg-black/40 text-white border-0">Arquivado</Badge>}
+                <div className="absolute top-2 right-2 flex gap-1">
+                  {c.bloqueado && <Badge variant="destructive" className="border-0">Bloqueado</Badge>}
+                  {!c.ativo && <Badge variant="secondary" className="bg-black/40 text-white border-0">Arquivado</Badge>}
+                </div>
               </Card>
             </Link>
           );

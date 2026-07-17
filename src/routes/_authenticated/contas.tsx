@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -8,6 +8,7 @@ import {
   marcarPago,
   desmarcarPago,
 } from "@/lib/contas.functions";
+import { listarFaturasComoContas, pagarFatura } from "@/lib/cartoes.functions";
 import { listarMembrosAtivos } from "@/lib/workspaces.functions";
 import { AuthorBadge } from "@/components/livrocaixa/author-badge";
 import { Card } from "@/components/ui/card";
@@ -15,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ContaModal, type ContaEdit } from "@/components/livrocaixa/conta-modal";
 import { formatBRL } from "@/components/livrocaixa/transacao-modal";
-import { Check, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { Check, Pencil, RotateCcw, Trash2, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/contas")({
@@ -37,11 +38,14 @@ function ContasPage() {
   const pagarFn = useServerFn(marcarPago);
   const desmarcarFn = useServerFn(desmarcarPago);
   const membrosFn = useServerFn(listarMembrosAtivos);
+  const faturasFn = useServerFn(listarFaturasComoContas);
+  const pagarFaturaFn = useServerFn(pagarFatura);
   const qc = useQueryClient();
 
   const inicio = `${ref.ano}-${String(ref.mes + 1).padStart(2, "0")}-01`;
   const fimDate = new Date(ref.ano, ref.mes + 1, 0);
   const fim = `${ref.ano}-${String(ref.mes + 1).padStart(2, "0")}-${String(fimDate.getDate()).padStart(2, "0")}`;
+  const hoje = new Date().toISOString().slice(0, 10);
 
   const { data: rows } = useQuery({
     queryKey: ["contas", inicio, fim, tipo, status, autorId],
@@ -63,16 +67,39 @@ function ContasPage() {
     return m;
   }, [membros]);
 
+  const { data: faturasAbertas } = useQuery({ queryKey: ["faturasComoContas"], queryFn: () => faturasFn() });
+  const rowsFaturas = useMemo(() => {
+    return (faturasAbertas ?? [])
+      .filter((f: any) => f.vencimento >= inicio && f.vencimento <= fim)
+      .filter((f: any) => tipo === "todos" || tipo === "pagar")
+      .filter((f: any) => status !== "pagas") // faturas espelhadas aqui nunca estão pagas
+      .filter((f: any) => status !== "atrasadas" || f.vencimento < hoje)
+      .map((f: any) => ({ ...f, pago_em: null, categoria_id: null, observacao: null, grupo_recorrencia: null, criado_por: null }));
+  }, [faturasAbertas, inicio, fim, tipo, status]);
+
+  const linhasCombinadas = useMemo(() => {
+    const reais = (rows ?? []).map((r: any) => ({ ...r, origem: "conta" as const }));
+    return [...reais, ...rowsFaturas].sort((a, b) => a.vencimento.localeCompare(b.vencimento));
+  }, [rows, rowsFaturas]);
+
   const invalidar = () => {
     qc.invalidateQueries({ queryKey: ["contas"] });
     qc.invalidateQueries({ queryKey: ["resumoContas"] });
     qc.invalidateQueries({ queryKey: ["resumo"] });
     qc.invalidateQueries({ queryKey: ["transacoes"] });
+    qc.invalidateQueries({ queryKey: ["faturasComoContas"] });
+    qc.invalidateQueries({ queryKey: ["cartoes"] });
+    qc.invalidateQueries({ queryKey: ["fatura"] });
   };
 
   const pagar = useMutation({
     mutationFn: (id: string) => pagarFn({ data: { id } }),
     onSuccess: () => { toast.success("Marcada como paga"); invalidar(); },
+    onError: (e: any) => toast.error("Erro", { description: e.message }),
+  });
+  const pagarFaturaMut = useMutation({
+    mutationFn: (faturaId: string) => pagarFaturaFn({ data: { fatura_id: faturaId, data_pagamento: hoje, categoria_id: null } }),
+    onSuccess: () => { toast.success("Fatura paga"); invalidar(); },
     onError: (e: any) => toast.error("Erro", { description: e.message }),
   });
   const desmarcar = useMutation({
@@ -94,16 +121,15 @@ function ContasPage() {
     });
   }
 
-  const hoje = new Date().toISOString().slice(0, 10);
   const totais = useMemo(() => {
     let pagar = 0, receber = 0;
-    for (const r of rows ?? []) {
+    for (const r of linhasCombinadas) {
       if (r.pago_em) continue;
       const v = Number(r.valor);
       if (r.tipo === "pagar") pagar += v; else receber += v;
     }
     return { pagar, receber };
-  }, [rows]);
+  }, [linhasCombinadas]);
 
   return (
     <div className="space-y-6">
@@ -172,34 +198,56 @@ function ContasPage() {
       </div>
 
       <Card className="divide-y">
-        {(rows ?? []).length === 0 && (
+        {linhasCombinadas.length === 0 && (
           <div className="p-8 text-center text-sm text-muted-foreground">Nenhuma conta encontrada.</div>
         )}
-        {(rows ?? []).map((r) => {
-          const cat = (r as any).categorias?.nome ?? "Sem categoria";
+        {linhasCombinadas.map((r: any) => {
+          const isFatura = r.origem === "fatura";
+          const cat = isFatura ? "Cartão de crédito" : (r as any).categorias?.nome ?? "Sem categoria";
           const isPagar = r.tipo === "pagar";
           const pago = !!r.pago_em;
           const atrasada = !pago && r.vencimento < hoje;
           const cor = isPagar ? "var(--color-despesa)" : "var(--color-receita)";
           const autor = membrosMap.get((r as any).criado_por);
           return (
-            <div key={r.id} className="p-4 flex items-center gap-4">
+            <div key={`${r.origem ?? "conta"}-${r.id}`} className="p-4 flex items-center gap-4">
               <div className="w-2 h-10 rounded" style={{ background: pago ? "var(--muted-foreground)" : cor, opacity: pago ? 0.4 : 1 }} />
-              <AuthorBadge autor={autor} />
+              {isFatura ? (
+                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: r.cor ?? "var(--color-despesa)" }}>
+                  <CreditCard className="w-4 h-4 text-white" />
+                </div>
+              ) : (
+                <AuthorBadge autor={autor} />
+              )}
               <div className="flex-1 min-w-0">
-                <div className={`font-medium truncate ${pago ? "line-through opacity-60" : ""}`}>{r.descricao}</div>
+                <div className={`font-medium truncate ${pago ? "line-through opacity-60" : ""}`}>
+                  {isFatura ? (
+                    <Link to="/cartoes/$id" params={{ id: r.cartao_id }} className="hover:underline">{r.descricao}</Link>
+                  ) : r.descricao}
+                </div>
                 <div className="text-xs text-muted-foreground truncate">
                   Vence {new Date(r.vencimento + "T12:00").toLocaleDateString("pt-BR")} · {cat}
-                  {autor && <> · por {autor.nome}</>}
+                  {!isFatura && autor && <> · por {autor.nome}</>}
                   {atrasada && <span className="ml-2 text-[color:var(--color-despesa)] font-medium">· atrasada</span>}
                   {pago && <span className="ml-2 text-[color:var(--color-receita)] font-medium">· paga</span>}
-                  {r.grupo_recorrencia && <span className="ml-2">· recorrente</span>}
+                  {!isFatura && r.grupo_recorrencia && <span className="ml-2">· recorrente</span>}
+                  {isFatura && r.status_fatura === "aberta" && <span className="ml-2">· fatura em aberto</span>}
                 </div>
               </div>
               <div className={`font-mono font-semibold ${pago ? "opacity-60" : ""}`} style={{ color: cor }}>
                 {isPagar ? "− " : "+ "}{formatBRL(Number(r.valor))}
               </div>
-              {!pago ? (
+              {isFatura ? (
+                <button
+                  onClick={() => pagarFaturaMut.mutate(r.id)}
+                  className="p-2 hover:bg-accent rounded"
+                  aria-label="Pagar fatura"
+                  title="Pagar fatura"
+                  disabled={pagarFaturaMut.isPending}
+                >
+                  <Check className="w-4 h-4 text-[color:var(--color-receita)]" />
+                </button>
+              ) : !pago ? (
                 <button onClick={() => pagar.mutate(r.id)} className="p-2 hover:bg-accent rounded" aria-label="Marcar como pago" title="Marcar como pago">
                   <Check className="w-4 h-4 text-[color:var(--color-receita)]" />
                 </button>
@@ -208,40 +256,44 @@ function ContasPage() {
                   <RotateCcw className="w-4 h-4" />
                 </button>
               )}
-              <button
-                onClick={() =>
-                  setModal({
-                    open: true,
-                    inicial: {
-                      id: r.id,
-                      tipo: r.tipo as "pagar" | "receber",
-                      descricao: r.descricao,
-                      valor: Number(r.valor),
-                      vencimento: r.vencimento,
-                      categoria_id: r.categoria_id,
-                      observacao: r.observacao,
-                    },
-                  })
-                }
-                className="p-2 hover:bg-accent rounded"
-                aria-label="Editar"
-              >
-                <Pencil className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => {
-                  if (r.grupo_recorrencia) {
-                    const escopo = confirm("Esta conta faz parte de uma recorrência.\n\nOK = excluir TODAS as parcelas pendentes deste grupo\nCancelar = excluir apenas esta") ? "grupo" : "uma";
-                    del.mutate({ id: r.id, escopo });
-                  } else if (confirm("Excluir esta conta?")) {
-                    del.mutate({ id: r.id, escopo: "uma" });
-                  }
-                }}
-                className="p-2 hover:bg-destructive/10 text-destructive rounded"
-                aria-label="Excluir"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              {!isFatura && (
+                <>
+                  <button
+                    onClick={() =>
+                      setModal({
+                        open: true,
+                        inicial: {
+                          id: r.id,
+                          tipo: r.tipo as "pagar" | "receber",
+                          descricao: r.descricao,
+                          valor: Number(r.valor),
+                          vencimento: r.vencimento,
+                          categoria_id: r.categoria_id,
+                          observacao: r.observacao,
+                        },
+                      })
+                    }
+                    className="p-2 hover:bg-accent rounded"
+                    aria-label="Editar"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (r.grupo_recorrencia) {
+                        const escopo = confirm("Esta conta faz parte de uma recorrência.\n\nOK = excluir TODAS as parcelas pendentes deste grupo\nCancelar = excluir apenas esta") ? "grupo" : "uma";
+                        del.mutate({ id: r.id, escopo });
+                      } else if (confirm("Excluir esta conta?")) {
+                        del.mutate({ id: r.id, escopo: "uma" });
+                      }
+                    }}
+                    className="p-2 hover:bg-destructive/10 text-destructive rounded"
+                    aria-label="Excluir"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </>
+              )}
             </div>
           );
         })}
