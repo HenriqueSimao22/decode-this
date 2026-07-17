@@ -45,3 +45,42 @@ O projeto já usava 3 temas via classes no `<html>` (`:root` = claro, `.pergamin
 - Verde (receita), vermelho/ferrugem (despesa) e azul petróleo (investimentos) foram clareados em relação à versão clara, para continuarem legíveis sobre o fundo escuro, mantendo a mesma identidade de cor.
 
 **Validação:** build de produção rodado novamente, sem erros.
+
+---
+
+## 2026-07-17 — Cartões (bloqueio por limite), Fatura em Contas, tema Pergaminho marrom café, abas de Metas e Investimentos
+
+### 1. Banco de dados (nova migração `20260717003201_add_bloqueio_metas_investimentos.sql`)
+- `cartoes.bloqueado` (boolean) — novo campo.
+- Tabela `metas` + `metas_aportes` (histórico de aportes/retiradas).
+- Tabela `investimentos`.
+- RLS habilitada nas três, seguindo o mesmo padrão de `private.is_workspace_member(...)` já usado no restante do projeto.
+- **Você precisa aplicar essa migração no seu projeto Supabase** (`supabase db push` ou colando o SQL no editor do Supabase) antes de usar essas funcionalidades. Também atualizei manualmente `src/integrations/supabase/types.ts` para refletir o novo schema (o ideal, depois de aplicar a migração, é rodar `supabase gen types` para regenerar esse arquivo automaticamente a partir do banco real).
+
+### 2. Cartões de crédito
+- **Bloqueio por limite excedido**: ao lançar uma compra que ultrapasse o limite, o cartão é marcado como bloqueado automaticamente (`recalcularBloqueio`). Um cartão bloqueado não aceita novas compras (erro claro no back-end) até que a fatura seja paga (ou a compra removida) e o total em aberto volte a ficar dentro do limite — nesse momento ele desbloqueia sozinho.
+- Aviso visual: banner vermelho na tela do cartão, badge "Bloqueado" na listagem e no detalhe, valor da fatura exibido em vermelho com o quanto excedeu, e o botão "Nova compra" fica desabilitado.
+- Extrato de compras da fatura (tela de detalhe do cartão) agora segue o mesmo padrão visual da lista de Transações (barra de cor lateral, sinal "−", mesmo espaçamento).
+
+### 3. Fatura na aba Contas
+- Faturas em aberto de todos os cartões agora aparecem automaticamente na aba **Contas** como "Fatura {Mês} — {Cartão}", com ícone de cartão, vencimento e valor total.
+- Clicar em "pagar" nessa linha chama a mesma função que a tela de cartão usa (`pagarFatura`) — ou seja, é a fatura de verdade sendo paga, não uma cópia solta.
+- Não é possível editar/excluir essas linhas por ali (faz sentido só pelo cartão), mas o nome é um link direto para a tela do cartão.
+
+### 4. Tema Pergaminho → Marrom café
+- Trocado o visual anterior (couro escuro) por uma paleta "grão de café torrado" (`#3C2A21`) com destaques em bronze/dourado quente (`#C4975B`), verde sálvia para receitas e terracota para despesas — mantendo a proposta rústica/elegante, agora com uma cara mais atual.
+- Temas Claro e Escuro não foram tocados.
+
+### 5. Nova aba: Metas
+- Dois tipos de meta: **economia** (juntar dinheiro para um objetivo, com aportes/retiradas manuais e histórico) e **limite de gasto por categoria** (progresso calculado automaticamente a partir das despesas do mês na categoria escolhida — sem precisar lançar nada à parte).
+- Barra de progresso dinâmica, com aviso visual quando o limite de gasto é ultrapassado e celebração 🎉 quando a meta de economia é concluída.
+- As metas também aparecem resumidas na **Visão Geral**, com barra de % dinâmica, como pedido.
+
+### 6. Nova aba: Investimentos
+- Cadastro manual de ações, FIIs, renda fixa, criptomoedas, fundos e outros — com quantidade, preço médio e valor atual por unidade (editável a qualquer momento).
+- Cálculo automático de valor investido, valor atual (patrimônio), rentabilidade % e distribuição por tipo.
+- Atualização de cotação é 100% manual por enquanto — ficou combinado que a automação (buscar cotação real periodicamente) é assunto para uma próxima conversa.
+
+### Validação
+- `npx vite build` ✅ sem erros
+- `npx tsc --noEmit` ✅ zero erros de tipo (incluindo os tipos do Supabase atualizados manualmente para as tabelas novas)
