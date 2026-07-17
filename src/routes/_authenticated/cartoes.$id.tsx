@@ -1,10 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   verFatura,
   listarFaturasCartao,
+  listarCartoes,
   excluirCompraCartao,
   pagarFatura,
   desfazerPagamentoFatura,
@@ -24,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatBRL } from "@/components/livrocaixa/transacao-modal";
 import { getBanco, BANDEIRAS } from "@/lib/bancos";
-import { ArrowLeft, Trash2, Pencil, Plus, RotateCcw, CheckCircle2, Archive, ArchiveRestore, AlertTriangle, CreditCard, X } from "lucide-react";
+import { Trash2, Pencil, Plus, RotateCcw, CheckCircle2, Archive, ArchiveRestore, AlertTriangle, CreditCard, X } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/cartoes/$id")({
@@ -57,6 +58,15 @@ function CartaoDetalhe() {
   });
   const { data: membros } = useQuery({ queryKey: ["membrosAtivos"], queryFn: () => membrosFn() });
   const membrosMap = useMemo(() => new Map((membros ?? []).map((m: any) => [m.user_id, m])), [membros]);
+
+  const listarFn = useServerFn(listarCartoes);
+  const { data: todosCartoes } = useQuery({ queryKey: ["cartoes"], queryFn: () => listarFn() });
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && id) {
+      localStorage.setItem("livrocaixa:ultimoCartaoId", id);
+    }
+  }, [id]);
 
   const [novaCompra, setNovaCompra] = useState(false);
   const [editar, setEditar] = useState(false);
@@ -108,9 +118,27 @@ function CartaoDetalhe() {
 
   return (
     <div className="space-y-6">
-      <Link to="/cartoes" className="text-sm text-muted-foreground inline-flex items-center gap-1 hover:text-foreground">
-        <ArrowLeft className="w-4 h-4" /> Voltar aos cartões
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Select
+          value={id}
+          onValueChange={(v) => navigate({ to: "/cartoes/$id", params: { id: v } })}
+        >
+          <SelectTrigger className="w-full sm:w-64">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(todosCartoes ?? []).map((c: any) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.nome} · {getBanco(c.banco).nome}
+                {c.bloqueado ? " (bloqueado)" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Link to="/cartoes/todos" className="text-sm text-muted-foreground inline-flex items-center gap-1 hover:text-foreground">
+          Ver todos os cartões
+        </Link>
+      </div>
 
       <Card
         className="p-6 text-white relative overflow-hidden"
