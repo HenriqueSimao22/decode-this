@@ -53,18 +53,27 @@ function CartoesPage() {
                 className="p-5 relative overflow-hidden text-white hover:brightness-110 transition-all cursor-pointer min-h-40"
                 style={{ background: `linear-gradient(135deg, ${c.cor} 0%, ${c.cor}cc 100%)` }}
               >
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="text-xs uppercase tracking-wide opacity-80">{banco.nome}</p>
                     <p className="font-serif text-lg font-semibold">{c.nome}</p>
                   </div>
-                  <Badge variant="secondary" className="bg-white/20 text-white border-0">{bandeiraNome(c.bandeira)}</Badge>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <Badge variant="secondary" className="bg-white/20 text-white border-0">{bandeiraNome(c.bandeira)}</Badge>
+                    {c.bloqueado && <Badge variant="destructive" className="border-0">Bloqueado</Badge>}
+                    {!c.ativo && <Badge variant="secondary" className="bg-black/40 text-white border-0">Arquivado</Badge>}
+                  </div>
                 </div>
                 <div className="mt-6">
                   <p className="text-[10px] uppercase opacity-70">Fatura em aberto</p>
                   <p className={`font-mono text-2xl font-bold ${c.bloqueado ? "text-red-200" : ""}`}>
-                    {c.bloqueado ? "− " : ""}{formatBRL(Number(c.total_em_aberto))}
+                    {formatBRL(Number(c.total_em_aberto))}
                   </p>
+                  {c.bloqueado && c.limite != null && (
+                    <p className="text-[11px] text-red-200 font-medium mt-0.5">
+                      Excede o limite em {formatBRL(Number(c.total_em_aberto) - Number(c.limite))}
+                    </p>
+                  )}
                 </div>
                 {c.limite ? (
                   <div className="mt-3">
@@ -79,10 +88,6 @@ function CartoesPage() {
                 <p className="text-[10px] opacity-70 mt-2">
                   Fecha dia {c.dia_fechamento} · vence dia {c.dia_vencimento}
                 </p>
-                <div className="absolute top-2 right-2 flex gap-1">
-                  {c.bloqueado && <Badge variant="destructive" className="border-0">Bloqueado</Badge>}
-                  {!c.ativo && <Badge variant="secondary" className="bg-black/40 text-white border-0">Arquivado</Badge>}
-                </div>
               </Card>
             </Link>
           );

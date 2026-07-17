@@ -121,10 +121,15 @@ export const listarCartoes = createServerFn({ method: "GET" })
       if (st === "paga") continue;
       totalPorCartao.set(l.cartao_id, (totalPorCartao.get(l.cartao_id) ?? 0) + Number(l.valor_parcela));
     }
-    return (cartoes ?? []).map((c: any) => ({
-      ...c,
-      total_em_aberto: totalPorCartao.get(c.id) ?? 0,
+    const resultado = await Promise.all((cartoes ?? []).map(async (c: any) => {
+      const total = totalPorCartao.get(c.id) ?? 0;
+      const deveBloquear = c.limite != null && total > Number(c.limite);
+      if (deveBloquear !== c.bloqueado) {
+        await context.supabase.from("cartoes").update({ bloqueado: deveBloquear }).eq("id", c.id);
+      }
+      return { ...c, bloqueado: deveBloquear, total_em_aberto: total };
     }));
+    return resultado;
   });
 
 const cartaoSchema = z.object({
@@ -241,7 +246,22 @@ export const verFatura = createServerFn({ method: "POST" })
       fatura = { id: null, ...datas, status: "aberta", pago_em: null, transacao_pagamento_id: null } as any;
     }
     const total = linhas.reduce((a, l) => a + Number(l.valor_parcela), 0);
-    return { cartao, fatura, linhas, total };
+
+    // total_em_aberto = soma de TODAS as faturas não pagas do cartão (não só a do mês em tela)
+    const { data: linhasAbertas } = await context.supabase
+      .from("transacoes_cartao")
+      .select("valor_parcela, faturas!inner(status)")
+      .eq("cartao_id", data.cartao_id);
+    const totalEmAberto = (linhasAbertas ?? [])
+      .filter((l: any) => l.faturas?.status !== "paga")
+      .reduce((a: number, l: any) => a + Number(l.valor_parcela), 0);
+    const deveBloquear = cartao.limite != null && totalEmAberto > Number(cartao.limite);
+    if (deveBloquear !== cartao.bloqueado) {
+      await context.supabase.from("cartoes").update({ bloqueado: deveBloquear }).eq("id", cartao.id);
+      cartao.bloqueado = deveBloquear;
+    }
+
+    return { cartao, fatura, linhas, total, total_em_aberto: totalEmAberto };
   });
 
 // --------- Compras ---------

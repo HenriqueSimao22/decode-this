@@ -41,6 +41,7 @@ function CartaoDetalhe() {
     const d = new Date();
     return { ano: d.getFullYear(), mes: d.getMonth() };
   });
+  const [busca, setBusca] = useState("");
   const mesRef = `${ref.ano}-${String(ref.mes + 1).padStart(2, "0")}-01`;
 
   const verFn = useServerFn(verFatura);
@@ -92,12 +93,17 @@ function CartaoDetalhe() {
   const cartao = fatData?.cartao;
   const fatura = fatData?.fatura;
   const linhas = fatData?.linhas ?? [];
+  const linhasFiltradas = useMemo(
+    () => linhas.filter((l: any) => l.descricao.toLowerCase().includes(busca.trim().toLowerCase())),
+    [linhas, busca],
+  );
   const total = fatData?.total ?? 0;
+  const totalEmAberto = fatData?.total_em_aberto ?? total;
   const banco = cartao ? getBanco(cartao.banco) : null;
   const bandeiraNome = (c: string) => BANDEIRAS.find((b) => b.codigo === c)?.nome ?? c;
   const hoje = new Date().toISOString().slice(0, 10);
   const podePagar = fatura && fatura.id && fatura.status !== "paga" && total > 0;
-  const excedeuLimite = !!cartao && cartao.limite != null && total > Number(cartao.limite);
+  const excedeuLimite = !!cartao && cartao.limite != null && totalEmAberto > Number(cartao.limite);
 
   if (!cartao) return <p className="text-sm text-muted-foreground">Carregando...</p>;
 
@@ -171,7 +177,7 @@ function CartaoDetalhe() {
           </p>
           {excedeuLimite && (
             <p className="text-xs text-[color:var(--color-destructive)] mt-1">
-              Excede o limite em {formatBRL(total - Number(cartao.limite))}
+              Excede o limite em {formatBRL(totalEmAberto - Number(cartao.limite))}
             </p>
           )}
           <div className="mt-2 flex gap-2">
@@ -194,11 +200,19 @@ function CartaoDetalhe() {
         </Card>
       </div>
 
+      <Input
+        placeholder="Buscar compra por descrição..."
+        value={busca}
+        onChange={(e) => setBusca(e.target.value)}
+      />
+
       <Card className="divide-y">
-        {linhas.length === 0 && (
-          <div className="p-8 text-center text-sm text-muted-foreground">Nenhuma compra nesta fatura.</div>
+        {linhasFiltradas.length === 0 && (
+          <div className="p-8 text-center text-sm text-muted-foreground">
+            {busca ? "Nenhuma compra encontrada para essa busca." : "Nenhuma compra nesta fatura."}
+          </div>
         )}
-        {linhas.map((l: any) => {
+        {linhasFiltradas.map((l: any) => {
           const autor = membrosMap.get(l.criado_por);
           const cat = l.categorias?.nome;
           const parcelaLabel = l.parcelas_total > 1 ? ` · ${l.parcela_atual}/${l.parcelas_total}` : "";
