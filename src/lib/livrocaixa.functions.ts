@@ -152,6 +152,26 @@ export const excluirTransacao = createServerFn({ method: "POST" })
   });
 
 // ---------- Resumo para dashboard ----------
+export const resumoPeriodo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      fim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
+    const { data: rows, error } = await context.supabase
+      .from("transacoes")
+      .select("tipo, valor, data, categoria_id, categorias(nome, cor)")
+      .eq("workspace_id", wid)
+      .gte("data", data.inicio)
+      .lte("data", data.fim);
+    if (error) throw new Error(error.message);
+    return rows ?? [];
+  });
+
 export const resumoDashboard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>

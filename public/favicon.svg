@@ -1,0 +1,14 @@
+<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+  <rect width="40" height="40" rx="9" fill="#241812"/>
+  <path
+    d="M8 14.8C8 13.3 9.4 12.2 10.9 12.5L19 14.3V27.5L10.9 25.7C9.4 25.4 8 24.3 8 22.8V14.8Z"
+    fill="#D4AF37" fill-opacity="0.18" stroke="#D4AF37" stroke-width="1.5" stroke-linejoin="round"/>
+  <path
+    d="M32 14.8C32 13.3 30.6 12.2 29.1 12.5L21 14.3V27.5L29.1 25.7C30.6 25.4 32 24.3 32 22.8V14.8Z"
+    fill="#D4AF37" fill-opacity="0.18" stroke="#D4AF37" stroke-width="1.5" stroke-linejoin="round"/>
+  <line x1="20" y1="13.7" x2="20" y2="27.9" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="11" y1="17.6" x2="16.8" y2="18.5" stroke="#D4AF37" stroke-width="1.1" stroke-linecap="round" opacity="0.85"/>
+  <line x1="11" y1="20.8" x2="16.8" y2="21.5" stroke="#D4AF37" stroke-width="1.1" stroke-linecap="round" opacity="0.85"/>
+  <line x1="23.2" y1="18.5" x2="29" y2="17.6" stroke="#D4AF37" stroke-width="1.1" stroke-linecap="round" opacity="0.85"/>
+  <line x1="23.2" y1="21.5" x2="29" y2="20.8" stroke="#D4AF37" stroke-width="1.1" stroke-linecap="round" opacity="0.85"/>
+</svg>

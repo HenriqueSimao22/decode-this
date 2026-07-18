@@ -7,6 +7,7 @@ import { getPerfil } from "@/lib/livrocaixa.functions";
 import { souAdmin } from "@/lib/admin.functions";
 import { listarWorkspaces, trocarWorkspaceAtivo } from "@/lib/workspaces.functions";
 import { LogOut, LayoutDashboard, Wallet, Settings, Shield, CalendarClock, Users, Check, ChevronDown, CreditCard, Target, TrendingUp } from "lucide-react";
+import { LivroCaixaLogo } from "./logo";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
@@ -101,7 +102,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         }`}
       >
         <div className="p-6 border-b border-sidebar-border">
-          <h1 className="font-serif text-2xl font-semibold text-sidebar-primary">Livro Caixa</h1>
+          <div className="flex items-center gap-2.5">
+            <LivroCaixaLogo className="w-8 h-8 text-sidebar-primary shrink-0" />
+            <h1 className="font-serif text-2xl font-semibold text-sidebar-primary">Livro Caixa</h1>
+          </div>
           <p className="text-xs opacity-70 mt-1">Controle financeiro inteligente</p>
         </div>
         <div className="p-3 border-b border-sidebar-border">
@@ -178,7 +182,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="flex-1 min-w-0 flex flex-col">
         <header className="md:hidden flex items-center justify-between px-4 py-3 bg-sidebar text-sidebar-foreground border-b border-sidebar-border">
-          <h1 className="font-serif text-xl font-semibold text-sidebar-primary">Livro Caixa</h1>
+          <div className="flex items-center gap-2">
+            <LivroCaixaLogo className="w-6 h-6 text-sidebar-primary shrink-0" />
+            <h1 className="font-serif text-xl font-semibold text-sidebar-primary">Livro Caixa</h1>
+          </div>
           <nav className="flex gap-1">
             {links.map((l) => {
               const Icon = l.icon;
