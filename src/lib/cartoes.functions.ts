@@ -91,7 +91,7 @@ async function recalcularBloqueio(supabase: any, cartaoId: string) {
     .reduce((a: number, l: any) => a + Number(l.valor_parcela), 0);
   const deveBloquear = cartao.limite != null && total > Number(cartao.limite);
   if (deveBloquear !== cartao.bloqueado) {
-    await supabase.from("cartoes").update({ bloqueado: deveBloquear }).eq("id", cartaoId);
+    supabase.from("cartoes").update({ bloqueado: deveBloquear }).eq("id", cartaoId).then(() => {});
   }
   return { bloqueado: deveBloquear, total };
 }
@@ -121,14 +121,15 @@ export const listarCartoes = createServerFn({ method: "GET" })
       if (st === "paga") continue;
       totalPorCartao.set(l.cartao_id, (totalPorCartao.get(l.cartao_id) ?? 0) + Number(l.valor_parcela));
     }
-    const resultado = await Promise.all((cartoes ?? []).map(async (c: any) => {
+    const resultado = (cartoes ?? []).map((c: any) => {
       const total = totalPorCartao.get(c.id) ?? 0;
       const deveBloquear = c.limite != null && total > Number(c.limite);
       if (deveBloquear !== c.bloqueado) {
-        await context.supabase.from("cartoes").update({ bloqueado: deveBloquear }).eq("id", c.id);
+        // Auto-correção em segundo plano — nunca deve travar/atrasar a resposta da listagem.
+        context.supabase.from("cartoes").update({ bloqueado: deveBloquear }).eq("id", c.id).then(() => {});
       }
       return { ...c, bloqueado: deveBloquear, total_em_aberto: total };
-    }));
+    });
     return resultado;
   });
 
@@ -257,8 +258,9 @@ export const verFatura = createServerFn({ method: "POST" })
       .reduce((a: number, l: any) => a + Number(l.valor_parcela), 0);
     const deveBloquear = cartao.limite != null && totalEmAberto > Number(cartao.limite);
     if (deveBloquear !== cartao.bloqueado) {
-      await context.supabase.from("cartoes").update({ bloqueado: deveBloquear }).eq("id", cartao.id);
       cartao.bloqueado = deveBloquear;
+      // Auto-correção em segundo plano — nunca deve travar/atrasar a resposta da fatura.
+      context.supabase.from("cartoes").update({ bloqueado: deveBloquear }).eq("id", cartao.id).then(() => {});
     }
 
     return { cartao, fatura, linhas, total, total_em_aberto: totalEmAberto };
