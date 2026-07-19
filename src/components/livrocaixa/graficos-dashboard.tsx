@@ -4,6 +4,15 @@ import { useServerFn } from "@tanstack/react-start";
 import { resumoPeriodo } from "@/lib/livrocaixa.functions";
 import { Card } from "@/components/ui/card";
 import { Bar, Doughnut } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  ArcElement,
+  Tooltip,
+  Legend,
+} from "chart.js";
 import { useThemeChartColors } from "@/lib/theme-colors";
 import {
   FiltroPeriodo,
@@ -13,6 +22,8 @@ import {
   agruparDespesasPorCategoria,
 } from "./filtro-periodo";
 import { formatBRL } from "@/components/livrocaixa/transacao-modal";
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
 export function GraficoReceitasDespesas() {
   const [periodo, setPeriodo] = useState(periodoInicial);
