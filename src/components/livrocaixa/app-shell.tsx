@@ -1,12 +1,12 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getPerfil } from "@/lib/livrocaixa.functions";
 import { souAdmin } from "@/lib/admin.functions";
 import { listarWorkspaces, trocarWorkspaceAtivo } from "@/lib/workspaces.functions";
-import { LogOut, LayoutDashboard, Wallet, Settings, Shield, CalendarClock, Users, Check, ChevronDown, CreditCard, Target, TrendingUp } from "lucide-react";
+import { LogOut, LayoutDashboard, Wallet, Settings, Shield, CalendarClock, Users, Check, ChevronDown, CreditCard, Target, TrendingUp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { LivroCaixaLogo } from "./logo";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -39,26 +39,16 @@ export function AppShell({ children }: { children: ReactNode }) {
     root.classList.toggle("pergaminho", tema === "pergaminho");
   }, [tema]);
 
-  // Auto-hide sidebar (5s sem mouse). Aparece ao encostar na borda esquerda.
-  const [open, setOpen] = useState(true);
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  function scheduleHide() {
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => setOpen(false), 5000);
-  }
+  // Minimizar sidebar é decisão do usuário — sem esconder sozinho.
+  const [minimizado, setMinimizado] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("livrocaixa:sidebarMin") === "1";
+  });
   useEffect(() => {
-    scheduleHide();
-    return () => {
-      if (hideTimer.current) clearTimeout(hideTimer.current);
-    };
-  }, []);
-  function handleEnter() {
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-    setOpen(true);
-  }
-  function handleLeave() {
-    scheduleHide();
-  }
+    if (typeof window !== "undefined") {
+      localStorage.setItem("livrocaixa:sidebarMin", minimizado ? "1" : "0");
+    }
+  }, [minimizado]);
 
   useEffect(() => {
     if (perfilError && /bloqueada/i.test(String((perfilError as Error).message))) {
@@ -88,37 +78,46 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
-      {/* Zona sensível na lateral esquerda para reabrir o sidebar */}
-      <div
-        className="hidden md:block fixed left-0 top-0 h-full w-3 z-30"
-        onMouseEnter={handleEnter}
-        aria-hidden
-      />
       <aside
-        onMouseEnter={handleEnter}
-        onMouseLeave={handleLeave}
-        className={`hidden md:flex fixed md:static z-40 h-screen md:h-auto w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-transform duration-300 ease-out ${
-          open ? "translate-x-0" : "-translate-x-full md:-ml-64"
+        className={`hidden md:flex z-40 h-screen md:h-auto flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-[width] duration-200 ease-out shrink-0 ${
+          minimizado ? "w-16" : "w-64"
         }`}
       >
-        <div className="p-6 border-b border-sidebar-border">
-          <div className="flex items-center gap-2.5">
+        <div className={`p-4 border-b border-sidebar-border relative ${minimizado ? "flex flex-col items-center gap-2" : ""}`}>
+          <div className={`flex items-center gap-2.5 ${minimizado ? "justify-center" : ""}`}>
             <LivroCaixaLogo className="w-8 h-8 text-sidebar-primary shrink-0" />
-            <h1 className="font-serif text-2xl font-semibold text-sidebar-primary">Livro Caixa</h1>
+            {!minimizado && <h1 className="font-serif text-2xl font-semibold text-sidebar-primary">Livro Caixa</h1>}
           </div>
-          <p className="text-xs opacity-70 mt-1">Controle financeiro inteligente</p>
+          {!minimizado && <p className="text-xs opacity-70 mt-1">Controle financeiro inteligente</p>}
+          <button
+            onClick={() => setMinimizado((v) => !v)}
+            className={`p-1.5 rounded-md hover:bg-sidebar-accent text-sidebar-foreground/70 hover:text-sidebar-foreground ${minimizado ? "" : "absolute top-4 right-3"}`}
+            title={minimizado ? "Expandir menu" : "Minimizar menu"}
+            aria-label={minimizado ? "Expandir menu" : "Minimizar menu"}
+          >
+            {minimizado ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+          </button>
         </div>
         <div className="p-3 border-b border-sidebar-border">
           <DropdownMenu>
-            <DropdownMenuTrigger className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-sidebar-accent text-left">
+            <DropdownMenuTrigger
+              className={`w-full flex items-center gap-2 rounded-md text-sm hover:bg-sidebar-accent text-left ${
+                minimizado ? "justify-center p-2" : "px-3 py-2"
+              }`}
+              title={minimizado ? (wsAtual?.nome ?? "Workspace") : undefined}
+            >
               <span
                 className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
                 style={{ background: wsAtual?.cor ?? "#6366f1" }}
               >
                 {(wsAtual?.nome ?? "?").slice(0, 1).toUpperCase()}
               </span>
-              <span className="flex-1 min-w-0 truncate">{wsAtual?.nome ?? "Carregando..."}</span>
-              <ChevronDown className="w-4 h-4 opacity-60" />
+              {!minimizado && (
+                <>
+                  <span className="flex-1 min-w-0 truncate">{wsAtual?.nome ?? "Carregando..."}</span>
+                  <ChevronDown className="w-4 h-4 opacity-60" />
+                </>
+              )}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">
               <DropdownMenuLabel>Meus workspaces</DropdownMenuLabel>
@@ -148,34 +147,40 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={l.to}
                 to={l.to}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors ${
+                title={minimizado ? l.label : undefined}
+                className={`flex items-center gap-3 rounded-md text-sm transition-colors ${
+                  minimizado ? "justify-center p-2.5" : "px-3 py-2.5"
+                } ${
                   active
                     ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium"
                     : "hover:bg-sidebar-accent"
                 }`}
               >
-                <Icon className="w-4 h-4" />
-                {l.label}
+                <Icon className="w-4 h-4 shrink-0" />
+                {!minimizado && l.label}
               </Link>
             );
           })}
         </nav>
         <div className="p-3 border-t border-sidebar-border space-y-1">
-          <div className="px-3 py-2 flex items-center gap-2">
+          <div className={`py-2 flex items-center gap-2 ${minimizado ? "justify-center" : "px-3"}`}>
             <Avatar className="w-7 h-7">
               {perfil?.avatar_url ? <AvatarImage src={perfil.avatar_url} alt={perfil?.nome ?? ""} /> : null}
               <AvatarFallback className="text-[10px] font-bold text-white" style={{ background: wsAtual?.cor ?? "#6366f1" }}>
                 {(perfil?.nome ?? "?").slice(0, 1).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <div className="text-xs opacity-80 truncate">{perfil?.nome ?? "Usuário"}</div>
+            {!minimizado && <div className="text-xs opacity-80 truncate">{perfil?.nome ?? "Usuário"}</div>}
           </div>
           <button
             onClick={sair}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm hover:bg-sidebar-accent"
+            title={minimizado ? "Sair" : undefined}
+            className={`w-full flex items-center gap-3 rounded-md text-sm hover:bg-sidebar-accent ${
+              minimizado ? "justify-center p-2.5" : "px-3 py-2"
+            }`}
           >
-            <LogOut className="w-4 h-4" />
-            Sair
+            <LogOut className="w-4 h-4 shrink-0" />
+            {!minimizado && "Sair"}
           </button>
         </div>
       </aside>

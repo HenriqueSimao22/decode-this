@@ -27,7 +27,7 @@ function MetasPage() {
   const { data: metas } = useQuery({ queryKey: ["metas"], queryFn: () => listFn() });
 
   const [modal, setModal] = useState<{ open: boolean; inicial?: MetaEdit }>({ open: false });
-  const [aporteMeta, setAporteMeta] = useState<{ id: string; nome: string } | null>(null);
+  const [aporteMeta, setAporteMeta] = useState<{ id: string; nome: string; modoInicial: "aporte" | "retirada" } | null>(null);
 
   const invalidar = () => { qc.invalidateQueries({ queryKey: ["metas"] }); qc.invalidateQueries({ queryKey: ["resumoMetas"] }); };
   const del = useMutation({
@@ -133,9 +133,14 @@ function MetasPage() {
                   {m.concluida ? "Concluída 🎉" : estourou ? "Limite estourado" : `${pct}%`}
                 </Badge>
                 {m.tipo === "economia" && (
-                  <Button size="sm" variant="outline" onClick={() => setAporteMeta({ id: m.id, nome: m.nome })}>
-                    + Aporte
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setAporteMeta({ id: m.id, nome: m.nome, modoInicial: "aporte" })}>
+                      + Aporte
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setAporteMeta({ id: m.id, nome: m.nome, modoInicial: "retirada" })}>
+                      − Retirada
+                    </Button>
+                  </div>
                 )}
                 {m.concluida && (
                   <button onClick={() => arquivar.mutate(m.id)} className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
@@ -156,10 +161,10 @@ function MetasPage() {
   );
 }
 
-function AporteDialog({ meta, onClose, onDone }: { meta: { id: string; nome: string }; onClose: () => void; onDone: () => void }) {
+function AporteDialog({ meta, onClose, onDone }: { meta: { id: string; nome: string; modoInicial: "aporte" | "retirada" }; onClose: () => void; onDone: () => void }) {
   const aporteFn = useServerFn(registrarAporte);
   const [valor, setValor] = useState("");
-  const [tipoMov, setTipoMov] = useState<"aporte" | "retirada">("aporte");
+  const [tipoMov, setTipoMov] = useState<"aporte" | "retirada">(meta.modoInicial);
 
   const mut = useMutation({
     mutationFn: () => {
