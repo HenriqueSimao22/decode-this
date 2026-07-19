@@ -26,6 +26,7 @@ function AuthPage() {
   const [senha, setSenha] = useState("");
   const [nome, setNome] = useState("");
   const [codigo, setCodigo] = useState("");
+  const [aceitouTermos, setAceitouTermos] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -45,6 +46,9 @@ function AuthPage() {
 
   async function cadastrar(e: React.FormEvent) {
     e.preventDefault();
+    if (!aceitouTermos) {
+      return toast.error("Você precisa aceitar os Termos de Uso e a Política de Privacidade.");
+    }
     if (!codigo.trim()) {
       return toast.error("Informe seu código de acesso.", {
         description: "O cadastro é fechado — solicite um código ao administrador.",
@@ -76,6 +80,9 @@ function AuthPage() {
       return toast.error("Informe seu código de acesso antes de continuar com o Google.", {
         description: "Novos cadastros exigem código. Já tem conta? O código é ignorado no login.",
       });
+    }
+    if (!aceitouTermos) {
+      return toast.error("Você precisa aceitar os Termos de Uso e a Política de Privacidade.");
     }
     // Guarda o código para o primeiro cadastro Google (não afeta contas já existentes)
     try {
@@ -159,7 +166,22 @@ function AuthPage() {
                       Cadastro fechado. Solicite um código ao administrador.
                     </p>
                   </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
+                  <div className="flex items-start gap-2">
+                    <input
+                      id="aceite"
+                      type="checkbox"
+                      checked={aceitouTermos}
+                      onChange={(e) => setAceitouTermos(e.target.checked)}
+                      className="mt-0.5 accent-primary"
+                    />
+                    <label htmlFor="aceite" className="text-xs text-muted-foreground leading-relaxed">
+                      Li e aceito os{" "}
+                      <Link to="/termos" target="_blank" className="underline hover:text-foreground">Termos de Uso</Link>
+                      {" "}e a{" "}
+                      <Link to="/politica-privacidade" target="_blank" className="underline hover:text-foreground">Política de Privacidade</Link>.
+                    </label>
+                  </div>
+                  <Button type="submit" className="w-full" disabled={loading || !aceitouTermos}>
                     {loading ? "Criando..." : "Criar conta"}
                   </Button>
                 </form>
