@@ -90,10 +90,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         property: "og:description",
         content:
-          "Controle financeiro pessoal com receitas, despesas e gráficos. Multiusuário, seguro e com importação do seu backup.",
+          "Livro Caixa online: gerencie receitas, despesas e o saldo do mês com privacidade. Cadastre-se grátis e importe seu backup em segundos.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Livro Caixa — Controle Financeiro Online" },
+      { name: "twitter:description", content: "Livro Caixa online: gerencie receitas, despesas e o saldo do mês com privacidade. Cadastre-se grátis e importe seu backup em segundos." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/76c56233-3fe3-43fd-8345-2a47e7855ceb/id-preview-aeceee9a--69126a4e-5761-4149-bba7-6cfd1ff52c61.lovable.app-1784486349555.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/76c56233-3fe3-43fd-8345-2a47e7855ceb/id-preview-aeceee9a--69126a4e-5761-4149-bba7-6cfd1ff52c61.lovable.app-1784486349555.png" },
     ],
     links: [
       {
@@ -101,7 +105,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: appCss,
       },
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
