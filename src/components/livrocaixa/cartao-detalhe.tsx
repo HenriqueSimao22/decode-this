@@ -61,6 +61,24 @@ export function CartaoDetalhe({ id }: { id: string }) {
   const listarFn = useServerFn(listarCartoes);
   const { data: todosCartoes } = useQuery({ queryKey: ["cartoes"], queryFn: () => listarFn() });
 
+  // Abre direto na fatura "em aberto para lançamentos" hoje — não no mês
+  // calendário. Ex: cartão fecha dia 2, hoje é 22/jul → uma compra feita agora
+  // cairia na fatura de agosto, então é essa que deve aparecer já ao entrar.
+  const [ajustadoPara, setAjustadoPara] = useState<string | null>(null);
+  useEffect(() => {
+    const cartaoLista = todosCartoes?.find((c: any) => c.id === id);
+    if (!cartaoLista || ajustadoPara === id) return;
+    setAjustadoPara(id);
+    const hoje = new Date();
+    let ano = hoje.getFullYear();
+    let mes = hoje.getMonth();
+    if (hoje.getDate() > cartaoLista.dia_fechamento) {
+      mes += 1;
+      if (mes > 11) { mes = 0; ano += 1; }
+    }
+    setRef({ ano, mes });
+  }, [todosCartoes, id, ajustadoPara]);
+
   useEffect(() => {
     if (typeof window !== "undefined" && id) {
       localStorage.setItem(ULTIMO_CARTAO_KEY, id);
