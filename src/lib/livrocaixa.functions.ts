@@ -71,6 +71,33 @@ export const criarCategoria = createServerFn({ method: "POST" })
     return row;
   });
 
+export const editarCategoria = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      id: z.string().uuid(),
+      nome: z.string().trim().min(1).max(60),
+      cor: z.string().max(20).optional(),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("categorias")
+      .update({ nome: data.nome, cor: data.cor })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const excluirCategoria = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("categorias").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 // ---------- Transações ----------
 const TransacaoInput = z.object({
   tipo: TipoSchema,

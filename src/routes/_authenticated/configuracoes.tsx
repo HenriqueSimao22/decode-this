@@ -7,11 +7,17 @@ import {
   atualizarPerfil,
   importarBackup,
   exportarBackup,
+  listarCategorias,
+  criarCategoria,
+  editarCategoria,
+  excluirCategoria,
 } from "@/lib/livrocaixa.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Pencil, Trash2, Plus, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/configuracoes")({
@@ -131,6 +137,8 @@ function ConfigPage() {
         </div>
       </Card>
 
+      <CategoriasSection />
+
       <Card className="p-6 space-y-4">
         <h2 className="font-serif text-xl font-semibold">Backup</h2>
         <p className="text-sm text-muted-foreground">
@@ -155,6 +163,142 @@ function ConfigPage() {
         </div>
       </Card>
     </div>
+  );
+}
+
+function CategoriasSection() {
+  const qc = useQueryClient();
+  const listFn = useServerFn(listarCategorias);
+  const criarFn = useServerFn(criarCategoria);
+  const editarFn = useServerFn(editarCategoria);
+  const excluirFn = useServerFn(excluirCategoria);
+
+  const { data: categorias } = useQuery({ queryKey: ["categorias"], queryFn: () => listFn() });
+  const receitas = (categorias ?? []).filter((c: any) => c.tipo === "receita");
+  const despesas = (categorias ?? []).filter((c: any) => c.tipo === "despesa");
+
+  const [nome, setNome] = useState("");
+  const [tipo, setTipo] = useState<"receita" | "despesa">("despesa");
+  const [cor, setCor] = useState("#B08D57");
+  const [editando, setEditando] = useState<{ id: string; nome: string; cor: string } | null>(null);
+
+  const invalidar = () => qc.invalidateQueries({ queryKey: ["categorias"] });
+
+  const criar = useMutation({
+    mutationFn: () => criarFn({ data: { nome: nome.trim(), tipo, cor } }),
+    onSuccess: () => { toast.success("Categoria criada"); setNome(""); invalidar(); },
+    onError: (e: any) => toast.error("Erro", { description: e.message }),
+  });
+  const salvarEdicao = useMutation({
+    mutationFn: () => editarFn({ data: { id: editando!.id, nome: editando!.nome.trim(), cor: editando!.cor } }),
+    onSuccess: () => { toast.success("Categoria atualizada"); setEditando(null); invalidar(); },
+    onError: (e: any) => toast.error("Erro", { description: e.message }),
+  });
+  const excluir = useMutation({
+    mutationFn: (id: string) => excluirFn({ data: { id } }),
+    onSuccess: () => { toast.success("Categoria excluída"); invalidar(); },
+    onError: (e: any) => toast.error("Erro", { description: e.message }),
+  });
+
+  function Lista({ itens }: { itens: any[] }) {
+    return (
+      <div className="space-y-1">
+        {itens.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma categoria ainda.</p>}
+        {itens.map((c: any) => (
+          <div key={c.id} className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-accent group">
+            {editando?.id === c.id ? (() => {
+              const ed = editando!;
+              return (
+              <>
+                <input
+                  type="color"
+                  value={ed.cor}
+                  onChange={(e) => setEditando({ ...ed, cor: e.target.value })}
+                  className="w-6 h-6 rounded border shrink-0"
+                />
+                <Input
+                  value={ed.nome}
+                  onChange={(e) => setEditando({ ...ed, nome: e.target.value })}
+                  className="h-8 text-sm flex-1"
+                  maxLength={60}
+                  autoFocus
+                />
+                <button onClick={() => salvarEdicao.mutate()} className="p-1.5 hover:bg-background rounded text-[color:var(--color-receita)]" aria-label="Salvar">
+                  <Check className="w-4 h-4" />
+                </button>
+                <button onClick={() => setEditando(null)} className="p-1.5 hover:bg-background rounded" aria-label="Cancelar">
+                  <X className="w-4 h-4" />
+                </button>
+              </>
+              );
+            })() : (
+              <>
+                <span className="w-3 h-3 rounded-full shrink-0" style={{ background: c.cor ?? "#999" }} />
+                <span className="text-sm flex-1 truncate">{c.nome}</span>
+                <button
+                  onClick={() => setEditando({ id: c.id, nome: c.nome, cor: c.cor ?? "#B08D57" })}
+                  className="p-1.5 hover:bg-background rounded opacity-0 group-hover:opacity-100"
+                  aria-label="Editar"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => confirm(`Excluir a categoria "${c.nome}"? Transações que usam ela ficam sem categoria.`) && excluir.mutate(c.id)}
+                  className="p-1.5 hover:bg-background rounded text-destructive opacity-0 group-hover:opacity-100"
+                  aria-label="Excluir"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <Card className="p-6 space-y-4">
+      <div>
+        <h2 className="font-serif text-xl font-semibold">Categorias</h2>
+        <p className="text-sm text-muted-foreground">Crie categorias novas (ex: Eletrônicos, Pets, Assinaturas) e organize como quiser.</p>
+      </div>
+
+      <div className="grid gap-6 sm:grid-cols-2">
+        <div>
+          <h3 className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Despesas</h3>
+          <Lista itens={despesas} />
+        </div>
+        <div>
+          <h3 className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Receitas</h3>
+          <Lista itens={receitas} />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2 pt-2 border-t border-border">
+        <div className="flex-1 min-w-[10rem]">
+          <Label className="text-xs">Nova categoria</Label>
+          <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Eletrônicos" maxLength={60} />
+        </div>
+        <div className="w-32">
+          <Label className="text-xs">Tipo</Label>
+          <Select value={tipo} onValueChange={(v: any) => setTipo(v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="despesa">Despesa</SelectItem>
+              <SelectItem value="receita">Receita</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs">Cor</Label>
+          <input type="color" value={cor} onChange={(e) => setCor(e.target.value)} className="w-10 h-9 rounded border" />
+        </div>
+        <Button onClick={() => criar.mutate()} disabled={!nome.trim() || criar.isPending}>
+          <Plus className="w-4 h-4 mr-1" /> Adicionar
+        </Button>
+      </div>
+    </Card>
   );
 }
 
