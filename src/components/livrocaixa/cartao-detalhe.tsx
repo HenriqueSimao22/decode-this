@@ -6,6 +6,7 @@ import {
   verFatura,
   listarCartoes,
   excluirCompraCartao,
+  anteciparParcelas,
   pagarFatura,
   desfazerPagamentoFatura,
   excluirCartao,
@@ -24,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatBRL } from "@/components/livrocaixa/transacao-modal";
 import { getBanco, BANDEIRAS } from "@/lib/bancos";
-import { Trash2, Pencil, Plus, RotateCcw, CheckCircle2, Archive, ArchiveRestore, AlertTriangle, CreditCard, X } from "lucide-react";
+import { Trash2, Pencil, Plus, RotateCcw, CheckCircle2, Archive, ArchiveRestore, AlertTriangle, CreditCard, X, FastForward } from "lucide-react";
 import { toast } from "sonner";
 
 export const ULTIMO_CARTAO_KEY = "livrocaixa:ultimoCartaoId";
@@ -92,6 +93,18 @@ export function CartaoDetalhe({ id }: { id: string }) {
   const del = useMutation({
     mutationFn: (v: { id: string; escopo: "uma" | "grupo" }) => delCompra({ data: v }),
     onSuccess: () => { toast.success("Excluído"); qc.invalidateQueries({ queryKey: ["fatura"] }); qc.invalidateQueries({ queryKey: ["cartoes"] }); },
+  });
+  const anteciparFn = useServerFn(anteciparParcelas);
+  const antecipar = useMutation({
+    mutationFn: (compraId: string) => anteciparFn({ data: { id: compraId } }),
+    onSuccess: (res: any) => {
+      toast.success(`${res.parcelas_antecipadas} parcela(s) antecipada(s)`, {
+        description: `${formatBRL(res.valor_antecipado)} adicionado(s) a esta fatura.`,
+      });
+      qc.invalidateQueries({ queryKey: ["fatura"] });
+      qc.invalidateQueries({ queryKey: ["cartoes"] });
+    },
+    onError: (e: any) => toast.error("Erro", { description: e.message }),
   });
   const desfazer = useMutation({
     mutationFn: () => desfazerFn({ data: { fatura_id: fatData!.fatura!.id! } }),
@@ -283,6 +296,22 @@ export function CartaoDetalhe({ id }: { id: string }) {
                 </div>
               </div>
               <div className="font-mono font-semibold text-[color:var(--color-despesa)]">{formatBRL(Number(l.valor_parcela))}</div>
+              {l.parcelas_total > 1 && l.parcela_atual < l.parcelas_total && (
+                <button
+                  onClick={() => {
+                    const restantes = l.parcelas_total - l.parcela_atual;
+                    if (confirm(`Antecipar as ${restantes} parcela(s) restante(s) desta compra para esta fatura?`)) {
+                      antecipar.mutate(l.id);
+                    }
+                  }}
+                  className="p-2 hover:bg-accent rounded-full text-muted-foreground hover:text-foreground"
+                  aria-label="Antecipar parcelas restantes"
+                  title="Antecipar parcelas restantes"
+                  disabled={antecipar.isPending}
+                >
+                  <FastForward className="w-4 h-4" />
+                </button>
+              )}
               <button
                 onClick={() => {
                   const escopoGrupo = l.parcelas_total > 1

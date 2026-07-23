@@ -193,6 +193,44 @@ export const excluirCartao = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const anteciparParcelas = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: origem, error: eO } = await context.supabase
+      .from("transacoes_cartao")
+      .select("id, cartao_id, fatura_id, grupo_compra_id, parcela_atual, parcelas_total")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (eO) throw new Error(eO.message);
+    if (!origem) throw new Error("Compra não encontrada");
+    if (origem.parcelas_total <= 1 || origem.parcela_atual >= origem.parcelas_total) {
+      throw new Error("Não há parcelas futuras para antecipar nessa compra.");
+    }
+
+    const { data: restantes, error: eR } = await context.supabase
+      .from("transacoes_cartao")
+      .select("id, valor_parcela, fatura_id, faturas!inner(status)")
+      .eq("grupo_compra_id", origem.grupo_compra_id)
+      .gt("parcela_atual", origem.parcela_atual);
+    if (eR) throw new Error(eR.message);
+
+    const pendentes = (restantes ?? []).filter((r: any) => r.faturas?.status !== "paga" && r.fatura_id !== origem.fatura_id);
+    if (pendentes.length === 0) {
+      throw new Error("Não há parcelas futuras em aberto pra antecipar (talvez já estejam todas nesta fatura).");
+    }
+
+    const { error: eUp } = await context.supabase
+      .from("transacoes_cartao")
+      .update({ fatura_id: origem.fatura_id })
+      .in("id", pendentes.map((p: any) => p.id));
+    if (eUp) throw new Error(eUp.message);
+
+    const totalAntecipado = pendentes.reduce((a: number, p: any) => a + Number(p.valor_parcela), 0);
+    const { bloqueado } = await recalcularBloqueio(context.supabase, origem.cartao_id);
+    return { ok: true, parcelas_antecipadas: pendentes.length, valor_antecipado: totalAntecipado, bloqueado };
+  });
+
 // --------- Faturas ---------
 export const listarFaturasCartao = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
