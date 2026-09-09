@@ -1,0 +1,542 @@
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import {
+  verFatura,
+  listarCartoes,
+  excluirCompraCartao,
+  anteciparParcelas,
+  anteciparFatura,
+  pagarFatura,
+  desfazerPagamentoFatura,
+  excluirCartao,
+  arquivarCartao,
+} from "@/lib/cartoes.functions";
+import { listarMembrosAtivos } from "@/lib/workspaces.functions";
+import { CartaoModal } from "@/components/livrocaixa/cartao-modal";
+import { CompraCartaoModal } from "@/components/livrocaixa/compra-cartao-modal";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { formatBRL } from "@/components/livrocaixa/transacao-modal";
+import { getBanco, BANDEIRAS } from "@/lib/bancos";
+import { Trash2, Pencil, Plus, RotateCcw, CheckCircle2, Archive, ArchiveRestore, AlertTriangle, CreditCard, X, FastForward, Zap } from "lucide-react";
+import { toast } from "sonner";
+
+export const ULTIMO_CARTAO_KEY = "livrocaixa:ultimoCartaoId";
+
+// Componente compartilhado: renderiza o extrato/fatura de UM cartão específico.
+// Usado tanto pela rota /cartoes/$id quanto pela /cartoes (que mostra o último
+// cartão usado direto, sem depender de um redirecionamento de rota).
+export function CartaoDetalhe({ id }: { id: string }) {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [ref, setRef] = useState(() => {
+    const d = new Date();
+    return { ano: d.getFullYear(), mes: d.getMonth() };
+  });
+  const [busca, setBusca] = useState("");
+  const mesRef = `${ref.ano}-${String(ref.mes + 1).padStart(2, "0")}-01`;
+
+  const verFn = useServerFn(verFatura);
+  const membrosFn = useServerFn(listarMembrosAtivos);
+  const delCompra = useServerFn(excluirCompraCartao);
+  const pagarFn = useServerFn(pagarFatura);
+  const desfazerFn = useServerFn(desfazerPagamentoFatura);
+  const excluirFn = useServerFn(excluirCartao);
+  const arquivarFn = useServerFn(arquivarCartao);
+
+  const { data: fatData, isLoading, isError, refetch } = useQuery({
+    queryKey: ["fatura", id, mesRef],
+    queryFn: () => verFn({ data: { cartao_id: id, mes_referencia: mesRef } }),
+    retry: 1,
+  });
+  const { data: membros } = useQuery({ queryKey: ["membrosAtivos"], queryFn: () => membrosFn() });
+  const membrosMap = useMemo(() => new Map((membros ?? []).map((m: any) => [m.user_id, m])), [membros]);
+
+  const listarFn = useServerFn(listarCartoes);
+  const { data: todosCartoes } = useQuery({ queryKey: ["cartoes"], queryFn: () => listarFn() });
+
+  // Abre direto na fatura "em aberto para lançamentos" hoje — não no mês
+  // calendário. Ex: cartão fecha dia 2, hoje é 22/jul → uma compra feita agora
+  // cairia na fatura de agosto, então é essa que deve aparecer já ao entrar.
+  const [ajustadoPara, setAjustadoPara] = useState<string | null>(null);
+  useEffect(() => {
+    const cartaoLista = todosCartoes?.find((c: any) => c.id === id);
+    if (!cartaoLista || ajustadoPara === id) return;
+    setAjustadoPara(id);
+    const hoje = new Date();
+    let ano = hoje.getFullYear();
+    let mes = hoje.getMonth();
+    if (hoje.getDate() > cartaoLista.dia_fechamento) {
+      mes += 1;
+      if (mes > 11) { mes = 0; ano += 1; }
+    }
+    setRef({ ano, mes });
+  }, [todosCartoes, id, ajustadoPara]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && id) {
+      localStorage.setItem(ULTIMO_CARTAO_KEY, id);
+    }
+  }, [id]);
+
+  const [novaCompra, setNovaCompra] = useState(false);
+  const [editar, setEditar] = useState(false);
+  const [pagar, setPagar] = useState(false);
+  const [antecipando, setAntecipando] = useState(false);
+
+  const del = useMutation({
+    mutationFn: (v: { id: string; escopo: "uma" | "grupo" }) => delCompra({ data: v }),
+    onSuccess: () => { toast.success("Excluído"); qc.invalidateQueries({ queryKey: ["fatura"] }); qc.invalidateQueries({ queryKey: ["cartoes"] }); },
+  });
+  const anteciparFn = useServerFn(anteciparParcelas);
+  const antecipar = useMutation({
+    mutationFn: (compraId: string) => anteciparFn({ data: { id: compraId } }),
+    onSuccess: (res: any) => {
+      toast.success(`${res.parcelas_antecipadas} parcela(s) antecipada(s)`, {
+        description: `${formatBRL(res.valor_antecipado)} adicionado(s) a esta fatura.`,
+      });
+      qc.invalidateQueries({ queryKey: ["fatura"] });
+      qc.invalidateQueries({ queryKey: ["cartoes"] });
+    },
+    onError: (e: any) => toast.error("Erro", { description: e.message }),
+  });
+  const desfazer = useMutation({
+    mutationFn: () => desfazerFn({ data: { fatura_id: fatData!.fatura!.id! } }),
+    onSuccess: () => { toast.success("Pagamento desfeito"); qc.invalidateQueries({ queryKey: ["fatura"] }); qc.invalidateQueries({ queryKey: ["cartoes"] }); qc.invalidateQueries({ queryKey: ["transacoes"] }); },
+  });
+  const excluir = useMutation({
+    mutationFn: () => excluirFn({ data: { id } }),
+    onSuccess: () => { toast.success("Cartão excluído"); navigate({ to: "/cartoes/todos" }); },
+  });
+  const arquivar = useMutation({
+    mutationFn: (ativo: boolean) => arquivarFn({ data: { id, ativo } }),
+    onSuccess: () => { toast.success("Atualizado"); qc.invalidateQueries({ queryKey: ["fatura"] }); qc.invalidateQueries({ queryKey: ["cartoes"] }); },
+  });
+
+  const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  function mudarMes(delta: number) {
+    setRef((r) => {
+      const m = r.mes + delta;
+      if (m < 0) return { ano: r.ano - 1, mes: 11 };
+      if (m > 11) return { ano: r.ano + 1, mes: 0 };
+      return { ano: r.ano, mes: m };
+    });
+  }
+
+  const cartao = fatData?.cartao;
+  const fatura = fatData?.fatura;
+  const linhas = fatData?.linhas ?? [];
+  const total = fatData?.total ?? 0;
+  const totalEmAberto = fatData?.total_em_aberto ?? total;
+  const restante = fatData?.restante ?? total;
+  const totalAntecipadoFatura = fatData?.total_antecipado ?? 0;
+  const antecipacoesFatura = fatData?.antecipacoes ?? [];
+  const historico = useMemo(() => {
+    const compras = linhas.map((l: any) => ({ tipo: "compra" as const, data: l.data_compra, item: l }));
+    const antecip = antecipacoesFatura.map((a: any) => ({ tipo: "antecipacao" as const, data: a.data, item: a }));
+    return [...compras, ...antecip].sort((a, b) => a.data.localeCompare(b.data));
+  }, [linhas, antecipacoesFatura]);
+  const historicoFiltrado = useMemo(
+    () => historico.filter((h) =>
+      h.tipo === "antecipacao"
+        ? "antecipação de fatura".includes(busca.trim().toLowerCase())
+        : h.item.descricao.toLowerCase().includes(busca.trim().toLowerCase()),
+    ),
+    [historico, busca],
+  );
+  const banco = cartao ? getBanco(cartao.banco) : null;
+  const bandeiraNome = (c: string) => BANDEIRAS.find((b) => b.codigo === c)?.nome ?? c;
+  const hoje = new Date().toISOString().slice(0, 10);
+  const podePagar = fatura && fatura.id && fatura.status !== "paga" && restante > 0;
+  const podeAntecipar = fatura && fatura.id && fatura.status !== "paga" && restante > 0;
+  const excedeuLimite = !!cartao && cartao.limite != null && totalEmAberto > Number(cartao.limite);
+
+  if (isError) {
+    return (
+      <div className="p-10 text-center space-y-3">
+        <p className="text-sm text-muted-foreground">Não foi possível carregar este cartão agora.</p>
+        <Button variant="outline" onClick={() => refetch()}>Tentar de novo</Button>
+      </div>
+    );
+  }
+
+  if (isLoading || !cartao) return <p className="text-sm text-muted-foreground">Carregando...</p>;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Select
+          value={id}
+          onValueChange={(v) => navigate({ to: "/cartoes/$id", params: { id: v } })}
+        >
+          <SelectTrigger className="w-full sm:w-64">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(todosCartoes ?? []).map((c: any) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.nome} · {getBanco(c.banco).nome}
+                {c.bloqueado ? " (bloqueado)" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Link to="/cartoes/todos" className="text-sm text-muted-foreground inline-flex items-center gap-1 hover:text-foreground">
+          Ver todos os cartões
+        </Link>
+      </div>
+
+      <Card
+        className="p-6 text-white relative overflow-hidden"
+        style={{ background: `linear-gradient(135deg, ${cartao.cor} 0%, ${cartao.cor}cc 100%)` }}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-wide opacity-80">{banco?.nome}</p>
+            <h1 className="font-serif text-2xl font-semibold">{cartao.nome}</h1>
+            <p className="text-xs opacity-80 mt-1">
+              {bandeiraNome(cartao.bandeira)} · Fecha dia {cartao.dia_fechamento} · Vence dia {cartao.dia_vencimento}
+            </p>
+          </div>
+          <div className="flex gap-1">
+            <Button size="icon" variant="ghost" className="text-white hover:bg-white/20" onClick={() => setEditar(true)} title="Editar">
+              <Pencil className="w-4 h-4" />
+            </Button>
+            <Button size="icon" variant="ghost" className="text-white hover:bg-white/20"
+              onClick={() => arquivar.mutate(!cartao.ativo)} title={cartao.ativo ? "Arquivar" : "Reativar"}>
+              {cartao.ativo ? <Archive className="w-4 h-4" /> : <ArchiveRestore className="w-4 h-4" />}
+            </Button>
+            <Button size="icon" variant="ghost" className="text-white hover:bg-white/20"
+              onClick={() => {
+                if (confirm("Excluir este cartão? Todas as faturas e compras serão apagadas.")) excluir.mutate();
+              }}
+              title="Excluir">
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+        {cartao.limite ? (
+          <p className="text-xs opacity-70 mt-3">Limite: <span className="font-mono">{formatBRL(Number(cartao.limite))}</span></p>
+        ) : null}
+      </Card>
+
+      {cartao.bloqueado && (
+        <Card className="p-4 flex items-center gap-3 border-[color:var(--color-destructive)] bg-[color:var(--color-destructive)]/10">
+          <AlertTriangle className="w-5 h-5 shrink-0 text-[color:var(--color-destructive)]" />
+          <div className="text-sm">
+            <p className="font-medium text-[color:var(--color-destructive)]">Cartão bloqueado — limite excedido</p>
+            <p className="text-muted-foreground">Pague a fatura para liberar novas compras neste cartão.</p>
+          </div>
+        </Card>
+      )}
+
+      <Card className="p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => mudarMes(-1)}>‹</Button>
+          <span className="font-medium min-w-40 text-center">{MESES[ref.mes]} / {ref.ano}</span>
+          <Button variant="outline" size="sm" onClick={() => mudarMes(1)}>›</Button>
+          <div className="grow" />
+          <div className="text-sm text-muted-foreground">
+            Fecha {new Date(fatura!.data_fechamento + "T12:00").toLocaleDateString("pt-BR")} · Vence {new Date(fatura!.data_vencimento + "T12:00").toLocaleDateString("pt-BR")}
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="p-5">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            {totalAntecipadoFatura > 0 ? "Fatura restante" : "Total da fatura"}
+          </p>
+          <p className={`font-mono text-2xl font-bold mt-2 ${excedeuLimite ? "text-[color:var(--color-destructive)]" : ""}`}>
+            {excedeuLimite ? "− " : ""}{formatBRL(restante)}
+          </p>
+          {totalAntecipadoFatura > 0 && (
+            <p className="text-xs text-muted-foreground mt-1">
+              De {formatBRL(total)} original · {formatBRL(totalAntecipadoFatura)} já antecipado(s)
+            </p>
+          )}
+          {excedeuLimite && (
+            <p className="text-xs text-[color:var(--color-destructive)] mt-1">
+              Excede o limite em {formatBRL(totalEmAberto - Number(cartao.limite))}
+            </p>
+          )}
+          <div className="mt-2 flex gap-2">
+            {fatura?.status === "paga" ? <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Paga</Badge>
+              : fatura && fatura.data_fechamento <= hoje ? <Badge variant="secondary">Fechada</Badge>
+              : <Badge variant="outline">Em aberto</Badge>}
+            {cartao.bloqueado && <Badge variant="destructive">Bloqueado</Badge>}
+          </div>
+        </Card>
+        <Card className="p-5 md:col-span-2 flex items-center gap-2 flex-wrap">
+          <Button onClick={() => setNovaCompra(true)} disabled={cartao.bloqueado} title={cartao.bloqueado ? "Cartão bloqueado por limite excedido" : undefined}>
+            <Plus className="w-4 h-4 mr-1" /> Nova compra
+          </Button>
+          {podePagar && <Button variant="outline" onClick={() => setPagar(true)}><CheckCircle2 className="w-4 h-4 mr-1" /> Pagar fatura</Button>}
+          {podeAntecipar && <Button variant="outline" onClick={() => setAntecipando(true)}><Zap className="w-4 h-4 mr-1" /> Antecipar fatura</Button>}
+          {fatura?.status === "paga" && (
+            <Button variant="outline" onClick={() => confirm("Desfazer o pagamento desta fatura?") && desfazer.mutate()}>
+              <RotateCcw className="w-4 h-4 mr-1" /> Desfazer pagamento
+            </Button>
+          )}
+        </Card>
+      </div>
+
+      <Input
+        placeholder="Buscar compra por descrição..."
+        value={busca}
+        onChange={(e) => setBusca(e.target.value)}
+      />
+
+      <Card className="divide-y">
+        {historicoFiltrado.length === 0 && (
+          <div className="p-8 text-center text-sm text-muted-foreground">
+            {busca ? "Nenhum item encontrado para essa busca." : "Nenhuma movimentação nesta fatura."}
+          </div>
+        )}
+        {historicoFiltrado.map((h) => {
+          if (h.tipo === "antecipacao") {
+            const a = h.item;
+            return (
+              <div key={`ant-${a.id}`} className="p-4 flex items-center gap-4 bg-[color:var(--color-receita)]/5">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--color-receita)", opacity: 0.85 }}>
+                  <Zap className="w-4 h-4 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate">Antecipação de fatura</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {new Date(a.data + "T12:00").toLocaleDateString("pt-BR")}
+                    {membrosMap.get(a.criado_por) && <> · por {(membrosMap.get(a.criado_por) as any).nome}</>}
+                  </div>
+                </div>
+                <div className="font-mono font-semibold text-[color:var(--color-receita)]">− {formatBRL(Number(a.valor))}</div>
+              </div>
+            );
+          }
+          const l = h.item;
+          const autor = membrosMap.get(l.criado_por);
+          const cat = l.categorias?.nome;
+          const parcelaLabel = l.parcelas_total > 1 ? ` · ${l.parcela_atual}/${l.parcelas_total}` : "";
+          return (
+            <div key={l.id} className="p-4 flex items-center gap-4">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--color-despesa)", opacity: 0.85 }}>
+                <CreditCard className="w-4 h-4 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium truncate">{l.descricao}{parcelaLabel}</div>
+                <div className="text-xs text-muted-foreground truncate">
+                  {new Date(l.data_compra + "T12:00").toLocaleDateString("pt-BR")}
+                  {cat && <> · {cat}</>}
+                  {autor && <> · por {(autor as any).nome}</>}
+                </div>
+              </div>
+              <div className="font-mono font-semibold text-[color:var(--color-despesa)]">{formatBRL(Number(l.valor_parcela))}</div>
+              {l.parcelas_total > 1 && l.parcela_atual < l.parcelas_total && (
+                <button
+                  onClick={() => {
+                    const restantes = l.parcelas_total - l.parcela_atual;
+                    if (confirm(`Antecipar as ${restantes} parcela(s) restante(s) desta compra para esta fatura?`)) {
+                      antecipar.mutate(l.id);
+                    }
+                  }}
+                  className="p-2 hover:bg-accent rounded-full text-muted-foreground hover:text-foreground"
+                  aria-label="Antecipar parcelas restantes"
+                  title="Antecipar parcelas restantes"
+                  disabled={antecipar.isPending}
+                >
+                  <FastForward className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  const escopoGrupo = l.parcelas_total > 1
+                    ? confirm(`Compra parcelada em ${l.parcelas_total}x.\n\nOK = excluir TODAS as parcelas\nCancelar = excluir só esta`)
+                    : true;
+                  if (l.parcelas_total === 1 && !confirm("Excluir esta compra?")) return;
+                  del.mutate({ id: l.id, escopo: escopoGrupo ? "grupo" : "uma" });
+                }}
+                className="p-2 hover:bg-accent rounded-full text-muted-foreground hover:text-destructive"
+                aria-label="Excluir"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          );
+        })}
+      </Card>
+
+      <CartaoModal
+        open={editar}
+        onOpenChange={setEditar}
+        inicial={{
+          id: cartao.id,
+          nome: cartao.nome,
+          banco: cartao.banco,
+          bandeira: cartao.bandeira,
+          cor: cartao.cor,
+          limite: cartao.limite,
+          dia_fechamento: cartao.dia_fechamento,
+          dia_vencimento: cartao.dia_vencimento,
+        }}
+      />
+      <CompraCartaoModal open={novaCompra} onOpenChange={setNovaCompra} cartaoId={cartao.id} />
+      {fatura?.id && (
+        <PagarFaturaDialog
+          open={pagar}
+          onOpenChange={setPagar}
+          faturaId={fatura.id}
+          totalPadrao={restante}
+          pagarFn={pagarFn as any}
+          onDone={() => {
+            qc.invalidateQueries({ queryKey: ["fatura"] });
+            qc.invalidateQueries({ queryKey: ["cartoes"] });
+            qc.invalidateQueries({ queryKey: ["transacoes"] });
+          }}
+        />
+      )}
+      {fatura?.id && (
+        <AntecipacaoFaturaDialog
+          open={antecipando}
+          onOpenChange={setAntecipando}
+          faturaId={fatura.id}
+          restante={restante}
+          onDone={() => {
+            qc.invalidateQueries({ queryKey: ["fatura"] });
+            qc.invalidateQueries({ queryKey: ["cartoes"] });
+            qc.invalidateQueries({ queryKey: ["transacoes"] });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function PagarFaturaDialog({
+  open,
+  onOpenChange,
+  faturaId,
+  totalPadrao,
+  pagarFn,
+  onDone,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  faturaId: string;
+  totalPadrao: number;
+  pagarFn: any;
+  onDone: () => void;
+}) {
+  const [dataPag, setDataPag] = useState(new Date().toISOString().slice(0, 10));
+
+  const mut = useMutation({
+    mutationFn: () => pagarFn({ data: { fatura_id: faturaId, data_pagamento: dataPag } }),
+    onSuccess: () => { toast.success("Fatura paga"); onDone(); onOpenChange(false); },
+    onError: (e: any) => toast.error("Erro", { description: e.message }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader><DialogTitle className="font-serif text-xl">Pagar fatura</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Valor: <span className="font-mono font-semibold">{formatBRL(totalPadrao)}</span>. Vira uma despesa por categoria,
+            dividida automaticamente conforme as compras que compõem esta fatura.
+          </p>
+          <div>
+            <Label>Data do pagamento</Label>
+            <Input type="date" value={dataPag} onChange={(e) => setDataPag(e.target.value)} />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button onClick={() => mut.mutate()} disabled={mut.isPending}>{mut.isPending ? "Pagando..." : "Confirmar"}</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AntecipacaoFaturaDialog({
+  open,
+  onOpenChange,
+  faturaId,
+  restante,
+  onDone,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  faturaId: string;
+  restante: number;
+  onDone: () => void;
+}) {
+  const anteciparFn = useServerFn(anteciparFatura);
+
+  const [valor, setValor] = useState("");
+
+  useEffect(() => {
+    if (open) { setValor(""); }
+  }, [open]);
+
+  const valorNumerico = Number(valor.replace(",", "."));
+  const erroValidacao =
+    valor.trim() === "" ? null
+    : Number.isNaN(valorNumerico) ? "Informe um valor válido."
+    : valorNumerico <= 0 ? "O valor precisa ser maior que R$ 0,00."
+    : valorNumerico > restante ? `O valor não pode ser maior que o restante da fatura (${formatBRL(restante)}).`
+    : null;
+
+  const mut = useMutation({
+    mutationFn: () => anteciparFn({ data: { fatura_id: faturaId, valor: Math.round(valorNumerico * 100) / 100 } }),
+    onSuccess: (res: any) => {
+      toast.success(
+        res.fatura_quitada ? "Fatura totalmente antecipada 🎉" : "Antecipação registrada",
+        { description: `${formatBRL(res.valor_antecipado)} antecipado(s) · Fatura restante: ${formatBRL(res.restante)}` },
+      );
+      onDone();
+      onOpenChange(false);
+    },
+    onError: (e: any) => toast.error("Erro", { description: e.message }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader><DialogTitle className="font-serif text-xl">Antecipar fatura</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Valor atual em aberto: <span className="font-mono font-semibold text-foreground">{formatBRL(restante)}</span>.
+            {" "}O valor antecipado reduz a fatura, libera limite disponível no cartão imediatamente, e é dividido
+            automaticamente pelas categorias das compras desta fatura.
+          </p>
+          <div>
+            <Label>Valor a antecipar</Label>
+            <Input
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+              placeholder="0,00"
+              inputMode="decimal"
+              autoFocus
+            />
+            {erroValidacao && <p className="text-xs text-[color:var(--color-destructive)] mt-1">{erroValidacao}</p>}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button
+              onClick={() => mut.mutate()}
+              disabled={mut.isPending || !valor.trim() || !!erroValidacao}
+            >
+              {mut.isPending ? "Antecipando..." : "Confirmar antecipação"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

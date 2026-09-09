@@ -1,0 +1,731 @@
+import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { z } from "zod";
+import { getActiveWorkspaceId } from "./workspace-helper";
+
+// --------- helpers de fatura ---------
+function daysInMonth(ano: number, mes0: number) {
+  return new Date(ano, mes0 + 1, 0).getDate();
+}
+function dateStr(ano: number, mes0: number, dia: number) {
+  const dim = daysInMonth(ano, mes0);
+  const d = Math.min(dia, dim);
+  return `${ano}-${String(mes0 + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+function computeFaturaDatas(anoRef: number, mesRef0: number, diaFec: number, diaVen: number) {
+  const data_fechamento = dateStr(anoRef, mesRef0, diaFec);
+  // vencimento é a próxima ocorrência de diaVen após o fechamento
+  let ano2 = anoRef;
+  let mes2 = mesRef0;
+  if (diaVen <= diaFec) {
+    mes2 = mesRef0 + 1;
+    if (mes2 > 11) { mes2 = 0; ano2 = anoRef + 1; }
+  }
+  const data_vencimento = dateStr(ano2, mes2, diaVen);
+  return {
+    mes_referencia: dateStr(anoRef, mesRef0, 1),
+    data_fechamento,
+    data_vencimento,
+  };
+}
+function faturaRefFromCompra(dataCompra: string, diaFec: number) {
+  // dataCompra = YYYY-MM-DD
+  const [ano, mes, dia] = dataCompra.split("-").map(Number);
+  const mes0 = mes - 1;
+  if (dia <= diaFec) return { ano, mes0 };
+  const nm = mes0 + 1;
+  if (nm > 11) return { ano: ano + 1, mes0: 0 };
+  return { ano, mes0: nm };
+}
+function addMeses(ano: number, mes0: number, n: number) {
+  const total = mes0 + n;
+  const add = Math.floor(total / 12);
+  const m = ((total % 12) + 12) % 12;
+  return { ano: ano + add, mes0: m };
+}
+
+async function ensureFatura(
+  supabase: any,
+  cartao: { id: string; workspace_id: string; dia_fechamento: number; dia_vencimento: number },
+  ano: number,
+  mes0: number,
+) {
+  const datas = computeFaturaDatas(ano, mes0, cartao.dia_fechamento, cartao.dia_vencimento);
+  const { data: existing } = await supabase
+    .from("faturas")
+    .select("id, status")
+    .eq("cartao_id", cartao.id)
+    .eq("mes_referencia", datas.mes_referencia)
+    .maybeSingle();
+  if (existing) return { id: existing.id, ...datas };
+  const { data: created, error } = await supabase
+    .from("faturas")
+    .insert({
+      cartao_id: cartao.id,
+      workspace_id: cartao.workspace_id,
+      mes_referencia: datas.mes_referencia,
+      data_fechamento: datas.data_fechamento,
+      data_vencimento: datas.data_vencimento,
+      status: "aberta",
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  return { id: created.id, ...datas };
+}
+
+// Recalcula se o cartão deve ficar bloqueado (total em aberto > limite) e persiste o estado.
+// Soma tudo que já foi pago/antecipado (transações reais vinculadas a faturas ainda
+// não pagas) de um cartão — precisa ser descontado de tudo que calcula "quanto ainda
+// está em aberto" (limite disponível, bloqueio etc.)
+async function totalPagoEmAberto(supabase: any, cartaoId: string): Promise<number> {
+  const { data: faturasAbertas } = await supabase
+    .from("faturas")
+    .select("id")
+    .eq("cartao_id", cartaoId)
+    .neq("status", "paga");
+  const ids = (faturasAbertas ?? []).map((f: any) => f.id);
+  if (ids.length === 0) return 0;
+  const { data } = await supabase.from("transacoes").select("valor").in("fatura_id", ids);
+  return (data ?? []).reduce((acc: number, t: any) => acc + Number(t.valor), 0);
+}
+
+// Divide um pagamento (total ou parcial) de fatura em uma despesa por categoria,
+// de acordo com as categorias das compras que compõem essa fatura — em vez de
+// jogar tudo numa categoria só. Sabe descontar o que já foi pago antes (parcial
+// ou total) por categoria, pra nunca alocar de novo o que já foi coberto.
+async function distribuirPorCategoria(
+  supabase: any,
+  params: {
+    faturaId: string;
+    workspaceId: string;
+    userId: string;
+    valor: number;
+    descricaoPrefix: string;
+    data: string;
+  },
+) {
+  const { data: compras } = await supabase
+    .from("transacoes_cartao")
+    .select("valor_parcela, categoria_id, categorias(nome)")
+    .eq("fatura_id", params.faturaId);
+
+  const totalPorCategoria = new Map<string, { total: number; categoriaId: string | null; nome: string | null }>();
+  for (const c of compras ?? []) {
+    const chave = c.categoria_id ?? "sem-categoria";
+    const atual = totalPorCategoria.get(chave) ?? { total: 0, categoriaId: c.categoria_id ?? null, nome: c.categorias?.nome ?? null };
+    atual.total += Number(c.valor_parcela);
+    totalPorCategoria.set(chave, atual);
+  }
+
+  const { data: jaAlocado } = await supabase
+    .from("transacoes")
+    .select("valor, categoria_id")
+    .eq("fatura_id", params.faturaId);
+  const alocadoPorCategoria = new Map<string, number>();
+  for (const t of jaAlocado ?? []) {
+    const chave = t.categoria_id ?? "sem-categoria";
+    alocadoPorCategoria.set(chave, (alocadoPorCategoria.get(chave) ?? 0) + Number(t.valor));
+  }
+
+  const restantes: { categoriaId: string | null; nome: string | null; restante: number }[] = [];
+  let totalRestanteGeral = 0;
+  for (const [chave, info] of totalPorCategoria.entries()) {
+    const jaAloc = alocadoPorCategoria.get(chave) ?? 0;
+    const restante = Math.max(0, Math.round((info.total - jaAloc) * 100) / 100);
+    if (restante > 0) {
+      restantes.push({ categoriaId: info.categoriaId, nome: info.nome, restante });
+      totalRestanteGeral += restante;
+    }
+  }
+  if (totalRestanteGeral <= 0 || params.valor <= 0) return [];
+
+  const valorClamp = Math.min(params.valor, totalRestanteGeral);
+  const linhas: any[] = [];
+  let somaAlocada = 0;
+  restantes.forEach((r, i) => {
+    const isUltimo = i === restantes.length - 1;
+    const aloc = isUltimo
+      ? Math.max(0, Math.round((valorClamp - somaAlocada) * 100) / 100)
+      : Math.min(r.restante, Math.round(valorClamp * (r.restante / totalRestanteGeral) * 100) / 100);
+    somaAlocada += aloc;
+    if (aloc > 0.004) {
+      linhas.push({
+        user_id: params.userId,
+        workspace_id: params.workspaceId,
+        criado_por: params.userId,
+        tipo: "despesa",
+        descricao: `${params.descricaoPrefix} · ${r.nome ?? "Sem categoria"}`,
+        valor: aloc,
+        data: params.data,
+        categoria_id: r.categoriaId,
+        fatura_id: params.faturaId,
+      });
+    }
+  });
+
+  if (linhas.length > 0) {
+    const { error } = await supabase.from("transacoes").insert(linhas);
+    if (error) throw new Error(error.message);
+  }
+  return linhas;
+}
+
+async function recalcularBloqueio(supabase: any, cartaoId: string) {
+  const { data: cartao } = await supabase
+    .from("cartoes")
+    .select("id, limite, bloqueado")
+    .eq("id", cartaoId)
+    .maybeSingle();
+  if (!cartao) return { bloqueado: false, total: 0 };
+  const { data: linhas } = await supabase
+    .from("transacoes_cartao")
+    .select("valor_parcela, fatura_id, faturas!inner(status)")
+    .eq("cartao_id", cartaoId);
+  const totalCompras = (linhas ?? [])
+    .filter((l: any) => l.faturas?.status !== "paga")
+    .reduce((a: number, l: any) => a + Number(l.valor_parcela), 0);
+  const totalPago = await totalPagoEmAberto(supabase, cartaoId);
+  const total = Math.max(0, totalCompras - totalPago);
+  const deveBloquear = cartao.limite != null && total > Number(cartao.limite);
+  if (deveBloquear !== cartao.bloqueado) {
+    supabase.from("cartoes").update({ bloqueado: deveBloquear }).eq("id", cartaoId).then(() => {});
+  }
+  return { bloqueado: deveBloquear, total };
+}
+
+// --------- CRUD Cartões ---------
+export const listarCartoes = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
+    const { data: cartoes, error } = await context.supabase
+      .from("cartoes")
+      .select("id, nome, banco, bandeira, cor, limite, dia_fechamento, dia_vencimento, ativo, bloqueado, criado_por, created_at")
+      .eq("workspace_id", wid)
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(error.message);
+
+    // Totais da fatura "atual" (próxima em aberto/fechada) por cartão
+    const ids = (cartoes ?? []).map((c: any) => c.id);
+    if (ids.length === 0) return [];
+    const { data: linhas } = await context.supabase
+      .from("transacoes_cartao")
+      .select("cartao_id, valor_parcela, fatura_id, faturas!inner(status, mes_referencia)")
+      .in("cartao_id", ids);
+    const totalPorCartao = new Map<string, number>();
+    for (const l of linhas ?? []) {
+      const st = (l as any).faturas?.status;
+      if (st === "paga") continue;
+      totalPorCartao.set(l.cartao_id, (totalPorCartao.get(l.cartao_id) ?? 0) + Number(l.valor_parcela));
+    }
+    const resultado = await Promise.all((cartoes ?? []).map(async (c: any) => {
+      const totalCompras = totalPorCartao.get(c.id) ?? 0;
+      const totalAntecipado = await totalPagoEmAberto(context.supabase, c.id);
+      const total = Math.max(0, totalCompras - totalAntecipado);
+      const deveBloquear = c.limite != null && total > Number(c.limite);
+      if (deveBloquear !== c.bloqueado) {
+        // Auto-correção em segundo plano — nunca deve travar/atrasar a resposta da listagem.
+        context.supabase.from("cartoes").update({ bloqueado: deveBloquear }).eq("id", c.id).then(() => {});
+      }
+      return { ...c, bloqueado: deveBloquear, total_em_aberto: total };
+    }));
+    return resultado;
+  });
+
+const cartaoSchema = z.object({
+  nome: z.string().trim().min(1).max(80),
+  banco: z.string().trim().min(1).max(40),
+  bandeira: z.string().trim().min(1).max(40),
+  cor: z.string().regex(/^#([0-9a-fA-F]{6})$/),
+  limite: z.number().nonnegative().nullable(),
+  dia_fechamento: z.number().int().min(1).max(31),
+  dia_vencimento: z.number().int().min(1).max(31),
+});
+
+export const criarCartao = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => cartaoSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
+    const { data: row, error } = await context.supabase
+      .from("cartoes")
+      .insert({ ...data, workspace_id: wid, criado_por: context.userId })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return row;
+  });
+
+export const editarCartao = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => cartaoSchema.extend({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { id, ...rest } = data;
+    const { error } = await context.supabase
+      .from("cartoes")
+      .update(rest)
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const arquivarCartao = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ id: z.string().uuid(), ativo: z.boolean() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("cartoes")
+      .update({ ativo: data.ativo })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const excluirCartao = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("cartoes").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const anteciparParcelas = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: origem, error: eO } = await context.supabase
+      .from("transacoes_cartao")
+      .select("id, cartao_id, fatura_id, grupo_compra_id, parcela_atual, parcelas_total")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (eO) throw new Error(eO.message);
+    if (!origem) throw new Error("Compra não encontrada");
+    if (origem.parcelas_total <= 1 || origem.parcela_atual >= origem.parcelas_total) {
+      throw new Error("Não há parcelas futuras para antecipar nessa compra.");
+    }
+
+    const { data: restantes, error: eR } = await context.supabase
+      .from("transacoes_cartao")
+      .select("id, valor_parcela, fatura_id, faturas!inner(status)")
+      .eq("grupo_compra_id", origem.grupo_compra_id)
+      .gt("parcela_atual", origem.parcela_atual);
+    if (eR) throw new Error(eR.message);
+
+    const pendentes = (restantes ?? []).filter((r: any) => r.faturas?.status !== "paga" && r.fatura_id !== origem.fatura_id);
+    if (pendentes.length === 0) {
+      throw new Error("Não há parcelas futuras em aberto pra antecipar (talvez já estejam todas nesta fatura).");
+    }
+
+    const { error: eUp } = await context.supabase
+      .from("transacoes_cartao")
+      .update({ fatura_id: origem.fatura_id })
+      .in("id", pendentes.map((p: any) => p.id));
+    if (eUp) throw new Error(eUp.message);
+
+    const totalAntecipado = pendentes.reduce((a: number, p: any) => a + Number(p.valor_parcela), 0);
+    const { bloqueado } = await recalcularBloqueio(context.supabase, origem.cartao_id);
+    return { ok: true, parcelas_antecipadas: pendentes.length, valor_antecipado: totalAntecipado, bloqueado };
+  });
+
+// --------- Faturas ---------
+export const listarFaturasCartao = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ cartao_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("faturas")
+      .select("id, mes_referencia, data_fechamento, data_vencimento, status, pago_em")
+      .eq("cartao_id", data.cartao_id)
+      .order("mes_referencia", { ascending: false });
+    if (error) throw new Error(error.message);
+    return rows ?? [];
+  });
+
+export const verFatura = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      cartao_id: z.string().uuid(),
+      mes_referencia: z.string().regex(/^\d{4}-\d{2}-01$/),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
+    const { data: cartao, error: eC } = await context.supabase
+      .from("cartoes")
+      .select("id, nome, banco, bandeira, cor, limite, dia_fechamento, dia_vencimento, ativo, bloqueado, workspace_id")
+      .eq("id", data.cartao_id)
+      .maybeSingle();
+    if (eC) throw new Error(eC.message);
+    if (!cartao) throw new Error("Cartão não encontrado");
+
+    let { data: fatura } = await context.supabase
+      .from("faturas")
+      .select("id, mes_referencia, data_fechamento, data_vencimento, status, pago_em, transacao_pagamento_id")
+      .eq("cartao_id", data.cartao_id)
+      .eq("mes_referencia", data.mes_referencia)
+      .maybeSingle();
+
+    // Se não existe fatura pra esse mês, calcula datas mas não persiste
+    let linhas: any[] = [];
+    if (fatura) {
+      const { data: linhasRaw } = await context.supabase
+        .from("transacoes_cartao")
+        .select("id, descricao, valor_total, valor_parcela, parcelas_total, parcela_atual, data_compra, categoria_id, criado_por, grupo_compra_id, observacao, categorias(nome, cor)")
+        .eq("fatura_id", fatura.id)
+        .order("data_compra", { ascending: true });
+      linhas = linhasRaw ?? [];
+    } else {
+      const [ano, mes] = data.mes_referencia.split("-").map(Number);
+      const datas = computeFaturaDatas(ano, mes - 1, cartao.dia_fechamento, cartao.dia_vencimento);
+      fatura = { id: null, ...datas, status: "aberta", pago_em: null, transacao_pagamento_id: null } as any;
+    }
+    const total = linhas.reduce((a, l) => a + Number(l.valor_parcela), 0);
+
+    // Histórico de antecipações (eventos) + valor já pago/antecipado de verdade
+    // (via transações reais vinculadas a esta fatura, já divididas por categoria)
+    const { data: antecipacoes } = fatura?.id
+      ? await context.supabase
+          .from("fatura_antecipacoes")
+          .select("id, valor, data, criado_por, created_at")
+          .eq("fatura_id", fatura.id)
+          .order("data", { ascending: true })
+      : { data: [] as any[] };
+    const { data: transacoesFatura } = fatura?.id
+      ? await context.supabase.from("transacoes").select("valor").eq("fatura_id", fatura.id)
+      : { data: [] as any[] };
+    const totalAntecipadoFatura = (transacoesFatura ?? []).reduce((a: number, x: any) => a + Number(x.valor), 0);
+    const restante = Math.max(0, Math.round((total - totalAntecipadoFatura) * 100) / 100);
+
+    // total_em_aberto = soma de TODAS as faturas não pagas do cartão, já descontando o que foi pago/antecipado (não só a do mês em tela)
+    const { data: linhasAbertas } = await context.supabase
+      .from("transacoes_cartao")
+      .select("valor_parcela, faturas!inner(status)")
+      .eq("cartao_id", data.cartao_id);
+    const totalComprasAberto = (linhasAbertas ?? [])
+      .filter((l: any) => l.faturas?.status !== "paga")
+      .reduce((a: number, l: any) => a + Number(l.valor_parcela), 0);
+    const totalAntecipadoCartao = await totalPagoEmAberto(context.supabase, data.cartao_id);
+    const totalEmAberto = Math.max(0, totalComprasAberto - totalAntecipadoCartao);
+    const deveBloquear = cartao.limite != null && totalEmAberto > Number(cartao.limite);
+    if (deveBloquear !== cartao.bloqueado) {
+      cartao.bloqueado = deveBloquear;
+      // Auto-correção em segundo plano — nunca deve travar/atrasar a resposta da fatura.
+      context.supabase.from("cartoes").update({ bloqueado: deveBloquear }).eq("id", cartao.id).then(() => {});
+    }
+
+    return {
+      cartao,
+      fatura,
+      linhas,
+      total,
+      total_em_aberto: totalEmAberto,
+      antecipacoes: antecipacoes ?? [],
+      total_antecipado: totalAntecipadoFatura,
+      restante,
+    };
+  });
+
+// --------- Compras ---------
+const compraSchema = z.object({
+  cartao_id: z.string().uuid(),
+  descricao: z.string().trim().min(1).max(200),
+  valor_total: z.number().positive(),
+  data_compra: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  parcelas: z.number().int().min(1).max(48),
+  categoria_id: z.string().uuid().nullable(),
+  observacao: z.string().max(500).nullable(),
+});
+
+export const lancarCompraCartao = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => compraSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
+    const { data: cartao, error: eC } = await context.supabase
+      .from("cartoes")
+      .select("id, workspace_id, dia_fechamento, dia_vencimento, limite, bloqueado")
+      .eq("id", data.cartao_id)
+      .maybeSingle();
+    if (eC) throw new Error(eC.message);
+    if (!cartao) throw new Error("Cartão não encontrado");
+    if (cartao.bloqueado) {
+      throw new Error("Cartão bloqueado por limite excedido. Pague a fatura para poder usar novamente.");
+    }
+
+    const valorParcela = Math.round((data.valor_total / data.parcelas) * 100) / 100;
+    // ajuste de centavos na última
+    const somaParciais = valorParcela * data.parcelas;
+    const ajuste = Math.round((data.valor_total - somaParciais) * 100) / 100;
+
+    const inicio = faturaRefFromCompra(data.data_compra, cartao.dia_fechamento);
+    const grupo_compra_id = crypto.randomUUID();
+
+    const linhas: any[] = [];
+    for (let i = 0; i < data.parcelas; i++) {
+      const ref = addMeses(inicio.ano, inicio.mes0, i);
+      const fat = await ensureFatura(context.supabase, cartao as any, ref.ano, ref.mes0);
+      const isLast = i === data.parcelas - 1;
+      linhas.push({
+        cartao_id: cartao.id,
+        fatura_id: fat.id,
+        workspace_id: wid,
+        criado_por: context.userId,
+        categoria_id: data.categoria_id,
+        grupo_compra_id,
+        descricao: data.descricao,
+        valor_total: data.valor_total,
+        valor_parcela: isLast ? Math.round((valorParcela + ajuste) * 100) / 100 : valorParcela,
+        parcelas_total: data.parcelas,
+        parcela_atual: i + 1,
+        data_compra: data.data_compra,
+        observacao: data.observacao,
+      });
+    }
+    const { error } = await context.supabase.from("transacoes_cartao").insert(linhas);
+    if (error) throw new Error(error.message);
+    const { bloqueado, total } = await recalcularBloqueio(context.supabase, cartao.id);
+    return { ok: true, grupo_compra_id, bloqueado, total_em_aberto: total, limite: cartao.limite };
+  });
+
+export const excluirCompraCartao = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      id: z.string().uuid(),
+      escopo: z.enum(["uma", "grupo"]).default("grupo"),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: origem } = await context.supabase
+      .from("transacoes_cartao")
+      .select("cartao_id, grupo_compra_id")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (!origem) throw new Error("Compra não encontrada");
+
+    if (data.escopo === "uma") {
+      const { error } = await context.supabase.from("transacoes_cartao").delete().eq("id", data.id);
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await context.supabase
+        .from("transacoes_cartao")
+        .delete()
+        .eq("grupo_compra_id", origem.grupo_compra_id);
+      if (error) throw new Error(error.message);
+    }
+    const { bloqueado } = await recalcularBloqueio(context.supabase, origem.cartao_id);
+    return { ok: true, bloqueado };
+  });
+
+// --------- Pagar fatura ---------
+export const pagarFatura = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      fatura_id: z.string().uuid(),
+      data_pagamento: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
+    const { data: fatura, error: eF } = await context.supabase
+      .from("faturas")
+      .select("id, cartao_id, status, cartoes(nome)")
+      .eq("id", data.fatura_id)
+      .maybeSingle();
+    if (eF) throw new Error(eF.message);
+    if (!fatura) throw new Error("Fatura não encontrada");
+    if (fatura.status === "paga") throw new Error("Fatura já paga");
+
+    const { data: linhas } = await context.supabase
+      .from("transacoes_cartao")
+      .select("valor_parcela")
+      .eq("fatura_id", data.fatura_id);
+    const total = (linhas ?? []).reduce((a: number, l: any) => a + Number(l.valor_parcela), 0);
+    if (total <= 0) throw new Error("Fatura sem valor a pagar");
+
+    const { data: jaPago } = await context.supabase
+      .from("transacoes")
+      .select("valor")
+      .eq("fatura_id", data.fatura_id);
+    const totalJaPago = (jaPago ?? []).reduce((a: number, x: any) => a + Number(x.valor), 0);
+    const restante = Math.round((total - totalJaPago) * 100) / 100;
+    if (restante <= 0) throw new Error("Fatura já totalmente antecipada");
+
+    const nomeCartao = (fatura as any).cartoes?.nome ?? "Cartão";
+    // Divide a despesa automaticamente pelas categorias das compras da fatura,
+    // em vez de jogar tudo numa categoria só.
+    await distribuirPorCategoria(context.supabase, {
+      faturaId: data.fatura_id,
+      workspaceId: wid,
+      userId: context.userId,
+      valor: restante,
+      descricaoPrefix: `Fatura ${nomeCartao}`,
+      data: data.data_pagamento,
+    });
+
+    const { error: eUp } = await context.supabase
+      .from("faturas")
+      .update({
+        status: "paga",
+        pago_em: new Date(data.data_pagamento + "T12:00:00").toISOString(),
+      })
+      .eq("id", data.fatura_id);
+    if (eUp) throw new Error(eUp.message);
+    await recalcularBloqueio(context.supabase, fatura.cartao_id);
+    return { ok: true };
+  });
+
+export const anteciparFatura = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      fatura_id: z.string().uuid(),
+      valor: z.number().positive(),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
+    const { data: fatura, error: eF } = await context.supabase
+      .from("faturas")
+      .select("id, cartao_id, status, cartoes(nome)")
+      .eq("id", data.fatura_id)
+      .maybeSingle();
+    if (eF) throw new Error(eF.message);
+    if (!fatura) throw new Error("Fatura não encontrada");
+    if (fatura.status === "paga") throw new Error("Esta fatura já está paga");
+
+    const { data: linhas } = await context.supabase
+      .from("transacoes_cartao")
+      .select("valor_parcela")
+      .eq("fatura_id", data.fatura_id);
+    const total = (linhas ?? []).reduce((a: number, l: any) => a + Number(l.valor_parcela), 0);
+    if (total <= 0) throw new Error("Fatura sem valor em aberto para antecipar");
+
+    const { data: jaPago } = await context.supabase
+      .from("transacoes")
+      .select("valor")
+      .eq("fatura_id", data.fatura_id);
+    const totalJaPago = (jaPago ?? []).reduce((a: number, x: any) => a + Number(x.valor), 0);
+    const restante = Math.round((total - totalJaPago) * 100) / 100;
+    if (restante <= 0) throw new Error("Fatura já totalmente antecipada");
+
+    // Regra central: nunca deixar antecipar mais do que o saldo restante da fatura.
+    const valor = Math.round(data.valor * 100) / 100;
+    if (valor > restante + 0.005) {
+      throw new Error(`Valor maior que o saldo restante da fatura (${restante.toFixed(2)}).`);
+    }
+
+    const nomeCartao = (fatura as any).cartoes?.nome ?? "Cartão";
+    const hoje = new Date().toISOString().slice(0, 10);
+
+    // Movimentação financeira real: sai do "caixa" igual a um pagamento de fatura,
+    // só que parcial e antes do vencimento — dividida automaticamente pelas
+    // categorias das compras da fatura, assim como o pagamento completo.
+    await distribuirPorCategoria(context.supabase, {
+      faturaId: data.fatura_id,
+      workspaceId: wid,
+      userId: context.userId,
+      valor,
+      descricaoPrefix: `Antecipação de fatura ${nomeCartao}`,
+      data: hoje,
+    });
+
+    // Registro do evento de antecipação (linha do tempo mostrada na tela do cartão).
+    const { error: eIns2 } = await context.supabase.from("fatura_antecipacoes").insert({
+      fatura_id: data.fatura_id,
+      cartao_id: fatura.cartao_id,
+      workspace_id: wid,
+      criado_por: context.userId,
+      valor,
+      data: hoje,
+    });
+    if (eIns2) throw new Error(eIns2.message);
+
+    const novoRestante = Math.max(0, Math.round((restante - valor) * 100) / 100);
+    const faturaQuitada = novoRestante <= 0.01;
+    if (faturaQuitada) {
+      await context.supabase
+        .from("faturas")
+        .update({ status: "paga", pago_em: new Date().toISOString() })
+        .eq("id", data.fatura_id);
+    }
+
+    const { bloqueado } = await recalcularBloqueio(context.supabase, fatura.cartao_id);
+    return { ok: true, valor_antecipado: valor, restante: novoRestante, fatura_quitada: faturaQuitada, bloqueado };
+  });
+
+// --------- Faturas espelhadas na aba Contas ---------
+const MESES_ABREV = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+
+export const listarFaturasComoContas = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
+    const { data: faturas, error } = await context.supabase
+      .from("faturas")
+      .select("id, cartao_id, mes_referencia, data_vencimento, status, cartoes(nome, cor)")
+      .eq("workspace_id", wid)
+      .neq("status", "paga")
+      .order("data_vencimento", { ascending: true });
+    if (error) throw new Error(error.message);
+    const ids = (faturas ?? []).map((f: any) => f.id);
+    if (ids.length === 0) return [];
+    const { data: linhas } = await context.supabase
+      .from("transacoes_cartao")
+      .select("fatura_id, valor_parcela")
+      .in("fatura_id", ids);
+    const totais = new Map<string, number>();
+    for (const l of linhas ?? []) {
+      totais.set(l.fatura_id, (totais.get(l.fatura_id) ?? 0) + Number(l.valor_parcela));
+    }
+    return (faturas ?? [])
+      .map((f: any) => {
+        const [, mes] = f.mes_referencia.split("-");
+        const valor = totais.get(f.id) ?? 0;
+        return {
+          id: f.id,
+          origem: "fatura" as const,
+          cartao_id: f.cartao_id,
+          tipo: "pagar" as const,
+          descricao: `Fatura ${MESES_ABREV[Number(mes) - 1]} — ${f.cartoes?.nome ?? "Cartão"}`,
+          valor,
+          vencimento: f.data_vencimento,
+          status_fatura: f.status as "aberta" | "fechada",
+          cor: f.cartoes?.cor ?? null,
+        };
+      })
+      .filter((f: any) => f.valor > 0);
+  });
+
+export const desfazerPagamentoFatura = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ fatura_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: fatura } = await context.supabase
+      .from("faturas")
+      .select("id, cartao_id, data_fechamento")
+      .eq("id", data.fatura_id)
+      .maybeSingle();
+    if (!fatura) throw new Error("Fatura não encontrada");
+
+    // Apaga todas as despesas geradas por pagamento/antecipação desta fatura
+    // (podem ser várias, uma por categoria) e reseta o histórico de antecipações.
+    await context.supabase.from("transacoes").delete().eq("fatura_id", data.fatura_id);
+    await context.supabase.from("fatura_antecipacoes").delete().eq("fatura_id", data.fatura_id);
+
+    const hoje = new Date().toISOString().slice(0, 10);
+    const novoStatus = hoje >= (fatura as any).data_fechamento ? "fechada" : "aberta";
+    const { error } = await context.supabase
+      .from("faturas")
+      .update({ status: novoStatus, pago_em: null, transacao_pagamento_id: null })
+      .eq("id", data.fatura_id);
+    if (error) throw new Error(error.message);
+    await recalcularBloqueio(context.supabase, fatura.cartao_id);
+    return { ok: true };
+  });
