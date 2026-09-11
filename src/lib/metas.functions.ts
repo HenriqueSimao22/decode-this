@@ -105,20 +105,39 @@ export const registrarAporte = createServerFn({ method: "POST" })
     const wid = await getActiveWorkspaceId(context.supabase, context.userId);
     const { data: meta, error: eM } = await context.supabase
       .from("metas")
-      .select("id, valor_atual, valor_alvo")
+      .select("id, nome, valor_atual, valor_alvo")
       .eq("id", data.meta_id)
       .maybeSingle();
     if (eM) throw new Error(eM.message);
     if (!meta) throw new Error("Meta não encontrada");
     const novoValor = Math.max(0, Number(meta.valor_atual) + data.valor);
+    const dataMov = data.data ?? new Date().toISOString().slice(0, 10);
+
+    // Aporte (valor > 0) sai do saldo como despesa; retirada (valor < 0) volta ao saldo como receita.
+    const { data: tx, error: eTx } = await context.supabase
+      .from("transacoes")
+      .insert({
+        user_id: context.userId,
+        workspace_id: wid,
+        criado_por: context.userId,
+        tipo: data.valor > 0 ? "despesa" : "receita",
+        descricao: data.valor > 0 ? `Aporte meta: ${meta.nome}` : `Retirada meta: ${meta.nome}`,
+        valor: Math.abs(data.valor),
+        data: dataMov,
+        observacao: data.observacao ?? null,
+      })
+      .select("id")
+      .single();
+    if (eTx) throw new Error(eTx.message);
 
     const { error: eIns } = await context.supabase.from("metas_aportes").insert({
       meta_id: data.meta_id,
       workspace_id: wid,
       criado_por: context.userId,
       valor: data.valor,
-      data: data.data ?? new Date().toISOString().slice(0, 10),
+      data: dataMov,
       observacao: data.observacao ?? null,
+      transacao_id: tx.id,
     });
     if (eIns) throw new Error(eIns.message);
 
