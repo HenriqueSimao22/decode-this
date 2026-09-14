@@ -304,18 +304,20 @@ export function CartaoDetalhe({ id }: { id: string }) {
           if (h.tipo === "antecipacao") {
             const a = h.item;
             return (
-              <div key={`ant-${a.id}`} className="p-4 flex items-center gap-4 bg-[color:var(--color-receita)]/5">
-                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--color-receita)", opacity: 0.85 }}>
-                  <Zap className="w-4 h-4 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">Antecipação de fatura</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {new Date(a.data + "T12:00").toLocaleDateString("pt-BR")}
-                    {membrosMap.get(a.criado_por) && <> · por {(membrosMap.get(a.criado_por) as any).nome}</>}
+              <div key={`ant-${a.id}`} className="p-4 flex flex-wrap items-center gap-x-4 gap-y-2 bg-[color:var(--color-receita)]/5">
+                <div className="flex items-center gap-3 min-w-0 basis-full sm:basis-auto sm:flex-1">
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--color-receita)", opacity: 0.85 }}>
+                    <Zap className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">Antecipação de fatura</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {new Date(a.data + "T12:00").toLocaleDateString("pt-BR")}
+                      {membrosMap.get(a.criado_por) && <> · por {(membrosMap.get(a.criado_por) as any).nome}</>}
+                    </div>
                   </div>
                 </div>
-                <div className="font-mono font-semibold text-[color:var(--color-receita)]">− {formatBRL(Number(a.valor))}</div>
+                <div className="font-mono font-semibold text-sm sm:text-base text-[color:var(--color-receita)] ml-auto">− {formatBRL(Number(a.valor))}</div>
               </div>
             );
           }
@@ -324,48 +326,52 @@ export function CartaoDetalhe({ id }: { id: string }) {
           const cat = l.categorias?.nome;
           const parcelaLabel = l.parcelas_total > 1 ? ` · ${l.parcela_atual}/${l.parcelas_total}` : "";
           return (
-            <div key={l.id} className="p-4 flex items-center gap-4">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--color-despesa)", opacity: 0.85 }}>
-                <CreditCard className="w-4 h-4 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium truncate">{l.descricao}{parcelaLabel}</div>
-                <div className="text-xs text-muted-foreground truncate">
-                  {new Date(l.data_compra + "T12:00").toLocaleDateString("pt-BR")}
-                  {cat && <> · {cat}</>}
-                  {autor && <> · por {(autor as any).nome}</>}
+            <div key={l.id} className="p-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <div className="flex items-center gap-3 min-w-0 basis-full sm:basis-auto sm:flex-1">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--color-despesa)", opacity: 0.85 }}>
+                  <CreditCard className="w-4 h-4 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate">{l.descricao}{parcelaLabel}</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {new Date(l.data_compra + "T12:00").toLocaleDateString("pt-BR")}
+                    {cat && <> · {cat}</>}
+                    {autor && <> · por {(autor as any).nome}</>}
+                  </div>
                 </div>
               </div>
-              <div className="font-mono font-semibold text-[color:var(--color-despesa)]">{formatBRL(Number(l.valor_parcela))}</div>
-              {l.parcelas_total > 1 && l.parcela_atual < l.parcelas_total && (
+              <div className="flex items-center gap-1 ml-auto">
+                <div className="font-mono font-semibold text-sm sm:text-base text-[color:var(--color-despesa)]">{formatBRL(Number(l.valor_parcela))}</div>
+                {l.parcelas_total > 1 && l.parcela_atual < l.parcelas_total && (
+                  <button
+                    onClick={() => {
+                      const restantes = l.parcelas_total - l.parcela_atual;
+                      if (confirm(`Antecipar as ${restantes} parcela(s) restante(s) desta compra para esta fatura?`)) {
+                        antecipar.mutate(l.id);
+                      }
+                    }}
+                    className="p-2 hover:bg-accent rounded-full text-muted-foreground hover:text-foreground"
+                    aria-label="Antecipar parcelas restantes"
+                    title="Antecipar parcelas restantes"
+                    disabled={antecipar.isPending}
+                  >
+                    <FastForward className="w-4 h-4" />
+                  </button>
+                )}
                 <button
                   onClick={() => {
-                    const restantes = l.parcelas_total - l.parcela_atual;
-                    if (confirm(`Antecipar as ${restantes} parcela(s) restante(s) desta compra para esta fatura?`)) {
-                      antecipar.mutate(l.id);
-                    }
+                    const escopoGrupo = l.parcelas_total > 1
+                      ? confirm(`Compra parcelada em ${l.parcelas_total}x.\n\nOK = excluir TODAS as parcelas\nCancelar = excluir só esta`)
+                      : true;
+                    if (l.parcelas_total === 1 && !confirm("Excluir esta compra?")) return;
+                    del.mutate({ id: l.id, escopo: escopoGrupo ? "grupo" : "uma" });
                   }}
-                  className="p-2 hover:bg-accent rounded-full text-muted-foreground hover:text-foreground"
-                  aria-label="Antecipar parcelas restantes"
-                  title="Antecipar parcelas restantes"
-                  disabled={antecipar.isPending}
+                  className="p-2 hover:bg-accent rounded-full text-muted-foreground hover:text-destructive"
+                  aria-label="Excluir"
                 >
-                  <FastForward className="w-4 h-4" />
+                  <X className="w-4 h-4" />
                 </button>
-              )}
-              <button
-                onClick={() => {
-                  const escopoGrupo = l.parcelas_total > 1
-                    ? confirm(`Compra parcelada em ${l.parcelas_total}x.\n\nOK = excluir TODAS as parcelas\nCancelar = excluir só esta`)
-                    : true;
-                  if (l.parcelas_total === 1 && !confirm("Excluir esta compra?")) return;
-                  del.mutate({ id: l.id, escopo: escopoGrupo ? "grupo" : "uma" });
-                }}
-                className="p-2 hover:bg-accent rounded-full text-muted-foreground hover:text-destructive"
-                aria-label="Excluir"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              </div>
             </div>
           );
         })}

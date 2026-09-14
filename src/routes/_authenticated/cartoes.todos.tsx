@@ -30,7 +30,7 @@ function TodosCartoesPage() {
       </Link>
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-serif text-3xl font-semibold">Todos os cartões</h1>
+          <h1 className="font-serif text-2xl md:text-3xl font-semibold">Todos os cartões</h1>
           <p className="text-sm text-muted-foreground">Controle faturas, parcelas e limites</p>
         </div>
         <Button onClick={() => setModal(true)}>

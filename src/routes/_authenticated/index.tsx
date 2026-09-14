@@ -57,17 +57,42 @@ function Dashboard() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-serif text-3xl font-semibold">Visão geral</h1>
+          <h1 className="font-serif text-2xl md:text-3xl font-semibold">Visão geral</h1>
           <p className="text-sm text-muted-foreground">Seu resumo financeiro de {MESES[mesAtual]}/{ano}</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setAno(ano - 1)}>‹ {ano - 1}</Button>
-          <Button variant="outline" disabled>{ano}</Button>
-          <Button variant="outline" onClick={() => setAno(ano + 1)}>{ano + 1} ›</Button>
+        <div className="flex items-center gap-1 md:gap-2">
+          <Button variant="outline" size="icon" className="md:hidden" onClick={() => setAno(ano - 1)} aria-label={`Ano ${ano - 1}`}>‹</Button>
+          <Button variant="outline" className="hidden md:inline-flex" onClick={() => setAno(ano - 1)}>‹ {ano - 1}</Button>
+          <Button variant="outline" disabled className="px-3">{ano}</Button>
+          <Button variant="outline" size="icon" className="md:hidden" onClick={() => setAno(ano + 1)} aria-label={`Ano ${ano + 1}`}>›</Button>
+          <Button variant="outline" className="hidden md:inline-flex" onClick={() => setAno(ano + 1)}>{ano + 1} ›</Button>
         </div>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      {/* Mobile: um único cartão compacto com as 3 métricas lado a lado */}
+      <Card className="p-4 grid grid-cols-3 divide-x divide-border md:hidden">
+        <div className="text-center px-1">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Saldo</p>
+          <p className={`font-mono text-base font-bold mt-1 ${saldo >= 0 ? "text-[color:var(--color-receita)]" : "text-[color:var(--color-despesa)]"}`}>
+            {formatBRL(saldo)}
+          </p>
+        </div>
+        <div className="text-center px-1">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Receitas</p>
+          <p className="font-mono text-base font-bold mt-1 text-[color:var(--color-receita)]">
+            {formatBRL(agregados.receitasMes)}
+          </p>
+        </div>
+        <div className="text-center px-1">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Despesas</p>
+          <p className="font-mono text-base font-bold mt-1 text-[color:var(--color-despesa)]">
+            {formatBRL(agregados.despesasMes)}
+          </p>
+        </div>
+      </Card>
+
+      {/* Desktop: cartões completos, um por métrica */}
+      <div className="hidden md:grid gap-4 md:grid-cols-3">
         <Card className="p-6">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Saldo do mês</p>
           <p className={`font-mono text-3xl font-bold mt-2 ${saldo >= 0 ? "text-[color:var(--color-receita)]" : "text-[color:var(--color-despesa)]"}`}>
@@ -88,18 +113,18 @@ function Dashboard() {
         </Card>
       </div>
 
-      <div className="flex gap-2">
+      <div className="grid grid-cols-2 gap-2 md:flex">
         <Button
           onClick={() => setModal({ open: true, tipo: "receita" })}
           style={{ backgroundColor: "var(--color-receita)", color: "white" }}
         >
-          + Nova receita
+          + Receita
         </Button>
         <Button
           onClick={() => setModal({ open: true, tipo: "despesa" })}
           style={{ backgroundColor: "var(--color-despesa)", color: "white" }}
         >
-          + Nova despesa
+          + Despesa
         </Button>
       </div>
 

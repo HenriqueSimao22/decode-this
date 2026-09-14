@@ -135,10 +135,10 @@ function ContasPage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-serif text-3xl font-semibold">Contas a pagar e receber</h1>
+          <h1 className="font-serif text-2xl md:text-3xl font-semibold">Contas a pagar e receber</h1>
           <p className="text-sm text-muted-foreground">Acompanhe vencimentos e marque como pago</p>
         </div>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2 w-full md:flex md:w-auto">
           <Button onClick={() => setModal({ open: true, tipoDefault: "pagar" })}
             style={{ backgroundColor: "var(--color-despesa)", color: "white" }}>+ A pagar</Button>
           <Button onClick={() => setModal({ open: true, tipoDefault: "receber" })}
@@ -210,90 +210,94 @@ function ContasPage() {
           const cor = isPagar ? "var(--color-despesa)" : "var(--color-receita)";
           const autor = membrosMap.get((r as any).criado_por);
           return (
-            <div key={`${r.origem ?? "conta"}-${r.id}`} className="p-4 flex items-center gap-4">
-              <div className="w-2 h-10 rounded" style={{ background: pago ? "var(--muted-foreground)" : cor, opacity: pago ? 0.4 : 1 }} />
-              {isFatura ? (
-                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: r.cor ?? "var(--color-despesa)" }}>
-                  <CreditCard className="w-4 h-4 text-white" />
-                </div>
-              ) : (
-                <AuthorBadge autor={autor} />
-              )}
-              <div className="flex-1 min-w-0">
-                <div className={`font-medium truncate ${pago ? "line-through opacity-60" : ""}`}>
-                  {isFatura ? (
-                    <Link to="/cartoes/$id" params={{ id: r.cartao_id }} className="hover:underline">{r.descricao}</Link>
-                  ) : r.descricao}
-                </div>
-                <div className="text-xs text-muted-foreground truncate">
-                  Vence {new Date(r.vencimento + "T12:00").toLocaleDateString("pt-BR")} · {cat}
-                  {!isFatura && autor && <> · por {autor.nome}</>}
-                  {atrasada && <span className="ml-2 text-[color:var(--color-despesa)] font-medium">· atrasada</span>}
-                  {pago && <span className="ml-2 text-[color:var(--color-receita)] font-medium">· paga</span>}
-                  {!isFatura && r.grupo_recorrencia && <span className="ml-2">· recorrente</span>}
-                  {isFatura && r.status_fatura === "aberta" && <span className="ml-2">· fatura em aberto</span>}
+            <div key={`${r.origem ?? "conta"}-${r.id}`} className="p-4 flex flex-wrap items-center gap-x-4 gap-y-2 md:flex-nowrap">
+              <div className="flex items-center gap-3 min-w-0 basis-full md:basis-auto md:flex-1">
+                <div className="w-1.5 h-9 md:w-2 md:h-10 rounded shrink-0" style={{ background: pago ? "var(--muted-foreground)" : cor, opacity: pago ? 0.4 : 1 }} />
+                {isFatura ? (
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: r.cor ?? "var(--color-despesa)" }}>
+                    <CreditCard className="w-4 h-4 text-white" />
+                  </div>
+                ) : (
+                  <AuthorBadge autor={autor} />
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className={`font-medium truncate ${pago ? "line-through opacity-60" : ""}`}>
+                    {isFatura ? (
+                      <Link to="/cartoes/$id" params={{ id: r.cartao_id }} className="hover:underline">{r.descricao}</Link>
+                    ) : r.descricao}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    Vence {new Date(r.vencimento + "T12:00").toLocaleDateString("pt-BR")} · {cat}
+                    {!isFatura && autor && <> · por {autor.nome}</>}
+                    {atrasada && <span className="ml-2 text-[color:var(--color-despesa)] font-medium">· atrasada</span>}
+                    {pago && <span className="ml-2 text-[color:var(--color-receita)] font-medium">· paga</span>}
+                    {!isFatura && r.grupo_recorrencia && <span className="ml-2">· recorrente</span>}
+                    {isFatura && r.status_fatura === "aberta" && <span className="ml-2">· fatura em aberto</span>}
+                  </div>
                 </div>
               </div>
-              <div className={`font-mono font-semibold ${pago ? "opacity-60" : ""}`} style={{ color: cor }}>
-                {isPagar ? "− " : "+ "}{formatBRL(Number(r.valor))}
-              </div>
-              {isFatura ? (
-                <button
-                  onClick={() => pagarFaturaMut.mutate(r.id)}
-                  className="p-2 hover:bg-accent rounded"
-                  aria-label="Pagar fatura"
-                  title="Pagar fatura"
-                  disabled={pagarFaturaMut.isPending}
-                >
-                  <Check className="w-4 h-4 text-[color:var(--color-receita)]" />
-                </button>
-              ) : !pago ? (
-                <button onClick={() => pagar.mutate(r.id)} className="p-2 hover:bg-accent rounded" aria-label="Marcar como pago" title="Marcar como pago">
-                  <Check className="w-4 h-4 text-[color:var(--color-receita)]" />
-                </button>
-              ) : (
-                <button onClick={() => desmarcar.mutate(r.id)} className="p-2 hover:bg-accent rounded" aria-label="Desfazer pagamento" title="Desfazer pagamento">
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-              )}
-              {!isFatura && (
-                <>
+              <div className="flex items-center gap-1 ml-auto">
+                <div className={`font-mono font-semibold text-sm md:text-base ${pago ? "opacity-60" : ""}`} style={{ color: cor }}>
+                  {isPagar ? "− " : "+ "}{formatBRL(Number(r.valor))}
+                </div>
+                {isFatura ? (
                   <button
-                    onClick={() =>
-                      setModal({
-                        open: true,
-                        inicial: {
-                          id: r.id,
-                          tipo: r.tipo as "pagar" | "receber",
-                          descricao: r.descricao,
-                          valor: Number(r.valor),
-                          vencimento: r.vencimento,
-                          categoria_id: r.categoria_id,
-                          observacao: r.observacao,
-                        },
-                      })
-                    }
+                    onClick={() => pagarFaturaMut.mutate(r.id)}
                     className="p-2 hover:bg-accent rounded"
-                    aria-label="Editar"
+                    aria-label="Pagar fatura"
+                    title="Pagar fatura"
+                    disabled={pagarFaturaMut.isPending}
                   >
-                    <Pencil className="w-4 h-4" />
+                    <Check className="w-4 h-4 text-[color:var(--color-receita)]" />
                   </button>
-                  <button
-                    onClick={() => {
-                      if (r.grupo_recorrencia) {
-                        const escopo = confirm("Esta conta faz parte de uma recorrência.\n\nOK = excluir TODAS as parcelas pendentes deste grupo\nCancelar = excluir apenas esta") ? "grupo" : "uma";
-                        del.mutate({ id: r.id, escopo });
-                      } else if (confirm("Excluir esta conta?")) {
-                        del.mutate({ id: r.id, escopo: "uma" });
+                ) : !pago ? (
+                  <button onClick={() => pagar.mutate(r.id)} className="p-2 hover:bg-accent rounded" aria-label="Marcar como pago" title="Marcar como pago">
+                    <Check className="w-4 h-4 text-[color:var(--color-receita)]" />
+                  </button>
+                ) : (
+                  <button onClick={() => desmarcar.mutate(r.id)} className="p-2 hover:bg-accent rounded" aria-label="Desfazer pagamento" title="Desfazer pagamento">
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                )}
+                {!isFatura && (
+                  <>
+                    <button
+                      onClick={() =>
+                        setModal({
+                          open: true,
+                          inicial: {
+                            id: r.id,
+                            tipo: r.tipo as "pagar" | "receber",
+                            descricao: r.descricao,
+                            valor: Number(r.valor),
+                            vencimento: r.vencimento,
+                            categoria_id: r.categoria_id,
+                            observacao: r.observacao,
+                          },
+                        })
                       }
-                    }}
-                    className="p-2 hover:bg-destructive/10 text-destructive rounded"
-                    aria-label="Excluir"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </>
-              )}
+                      className="p-2 hover:bg-accent rounded"
+                      aria-label="Editar"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (r.grupo_recorrencia) {
+                          const escopo = confirm("Esta conta faz parte de uma recorrência.\n\nOK = excluir TODAS as parcelas pendentes deste grupo\nCancelar = excluir apenas esta") ? "grupo" : "uma";
+                          del.mutate({ id: r.id, escopo });
+                        } else if (confirm("Excluir esta conta?")) {
+                          del.mutate({ id: r.id, escopo: "uma" });
+                        }
+                      }}
+                      className="p-2 hover:bg-destructive/10 text-destructive rounded"
+                      aria-label="Excluir"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           );
         })}

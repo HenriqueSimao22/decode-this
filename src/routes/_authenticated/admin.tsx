@@ -43,7 +43,7 @@ function AdminPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="font-serif text-3xl">Administração</h1>
+        <h1 className="font-serif text-2xl md:text-3xl">Administração</h1>
         <p className="text-sm text-muted-foreground">Controle de acesso e usuários da plataforma.</p>
       </header>
       <Tabs defaultValue="codigos">

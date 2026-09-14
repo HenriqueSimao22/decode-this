@@ -94,7 +94,7 @@ function ConfigPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <header>
-        <h1 className="font-serif text-3xl font-semibold">Configurações</h1>
+        <h1 className="font-serif text-2xl md:text-3xl font-semibold">Configurações</h1>
         <p className="text-sm text-muted-foreground">Personalize sua conta e gerencie seus dados</p>
       </header>
 

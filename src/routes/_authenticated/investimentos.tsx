@@ -53,7 +53,7 @@ function InvestimentosPage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-serif text-3xl font-semibold">Investimentos</h1>
+          <h1 className="font-serif text-2xl md:text-3xl font-semibold">Investimentos</h1>
           <p className="text-sm text-muted-foreground">Ações, fundos imobiliários, criptomoedas e mais — tudo em um lugar</p>
         </div>
         <Button onClick={() => setModal({ open: true })}>
@@ -120,62 +120,66 @@ function InvestimentosPage() {
           const infoTipo = TIPOS_INVESTIMENTO.find((t) => t.valor === i.tipo);
           const positivo = i.rentabilidade_pct >= 0;
           return (
-            <div key={i.id} className="p-4 flex items-center gap-4">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: i.cor }}>
-                <Wallet className="w-4 h-4 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium truncate flex items-center gap-2">
-                  {i.nome}
-                  {i.ticker && <Badge variant="outline" className="text-[10px]">{i.ticker}</Badge>}
+            <div key={i.id} className="p-4 flex flex-wrap items-center gap-x-4 gap-y-3">
+              <div className="flex items-center gap-3 min-w-0 basis-full sm:basis-auto sm:flex-1">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: i.cor }}>
+                  <Wallet className="w-4 h-4 text-white" />
                 </div>
-                <div className="text-xs text-muted-foreground truncate">
-                  {infoTipo?.label} · {i.quantidade} un · preço médio {formatBRL(Number(i.preco_medio))}
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate flex items-center gap-2">
+                    {i.nome}
+                    {i.ticker && <Badge variant="outline" className="text-[10px]">{i.ticker}</Badge>}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {infoTipo?.label} · {i.quantidade} un · preço médio {formatBRL(Number(i.preco_medio))}
+                  </div>
                 </div>
-              </div>
-
-              {editandoValor === i.id ? (
-                <ValorAtualEditor
-                  id={i.id}
-                  valorInicial={i.valor_atual_unitario ?? i.preco_medio}
-                  onDone={() => { setEditandoValor(null); qc.invalidateQueries({ queryKey: ["investimentos"] }); }}
-                  onCancel={() => setEditandoValor(null)}
-                />
-              ) : (
-                <div className="text-right">
-                  <div className="font-mono font-semibold">{formatBRL(i.valor_atual)}</div>
-                  <button onClick={() => setEditandoValor(i.id)} className="text-[10px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-                    <RefreshCw className="w-2.5 h-2.5" /> atualizar valor
-                  </button>
-                </div>
-              )}
-
-              <div className={`font-mono text-sm w-20 text-right ${positivo ? "text-[color:var(--color-receita)]" : "text-[color:var(--color-despesa)]"}`}>
-                {positivo ? "+" : ""}{i.rentabilidade_pct.toFixed(1)}%
               </div>
 
-              <button
-                onClick={() => setModal({
-                  open: true,
-                  inicial: {
-                    id: i.id, tipo: i.tipo, nome: i.nome, ticker: i.ticker,
-                    quantidade: Number(i.quantidade), preco_medio: Number(i.preco_medio),
-                    valor_atual_unitario: i.valor_atual_unitario != null ? Number(i.valor_atual_unitario) : null,
-                    cor: i.cor, observacao: i.observacao,
-                  },
-                })}
-                className="p-2 hover:bg-accent rounded"
-                aria-label="Editar"
-              >
-                <Pencil className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => confirm("Remover este investimento?") && del.mutate(i.id)}
-                className="p-2 hover:bg-destructive/10 text-destructive rounded"
-                aria-label="Excluir"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-3 ml-auto">
+                {editandoValor === i.id ? (
+                  <ValorAtualEditor
+                    id={i.id}
+                    valorInicial={i.valor_atual_unitario ?? i.preco_medio}
+                    onDone={() => { setEditandoValor(null); qc.invalidateQueries({ queryKey: ["investimentos"] }); }}
+                    onCancel={() => setEditandoValor(null)}
+                  />
+                ) : (
+                  <div className="text-right">
+                    <div className="font-mono font-semibold text-sm sm:text-base">{formatBRL(i.valor_atual)}</div>
+                    <button onClick={() => setEditandoValor(i.id)} className="text-[10px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+                      <RefreshCw className="w-2.5 h-2.5" /> atualizar valor
+                    </button>
+                  </div>
+                )}
+
+                <div className={`font-mono text-sm w-16 sm:w-20 text-right shrink-0 ${positivo ? "text-[color:var(--color-receita)]" : "text-[color:var(--color-despesa)]"}`}>
+                  {positivo ? "+" : ""}{i.rentabilidade_pct.toFixed(1)}%
+                </div>
+
+                <button
+                  onClick={() => setModal({
+                    open: true,
+                    inicial: {
+                      id: i.id, tipo: i.tipo, nome: i.nome, ticker: i.ticker,
+                      quantidade: Number(i.quantidade), preco_medio: Number(i.preco_medio),
+                      valor_atual_unitario: i.valor_atual_unitario != null ? Number(i.valor_atual_unitario) : null,
+                      cor: i.cor, observacao: i.observacao,
+                    },
+                  })}
+                  className="p-2 hover:bg-accent rounded shrink-0"
+                  aria-label="Editar"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => confirm("Remover este investimento?") && del.mutate(i.id)}
+                  className="p-2 hover:bg-destructive/10 text-destructive rounded shrink-0"
+                  aria-label="Excluir"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           );
         })}

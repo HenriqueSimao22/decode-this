@@ -43,7 +43,7 @@ function CartoesIndex() {
     return (
       <div className="space-y-6">
         <header>
-          <h1 className="font-serif text-3xl font-semibold">Cartões de crédito</h1>
+          <h1 className="font-serif text-2xl md:text-3xl font-semibold">Cartões de crédito</h1>
           <p className="text-sm text-muted-foreground">Controle faturas, parcelas e limites</p>
         </header>
         <Card className="p-10 text-center">

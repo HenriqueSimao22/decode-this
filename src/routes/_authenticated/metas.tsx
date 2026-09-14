@@ -48,7 +48,7 @@ function MetasPage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-serif text-3xl font-semibold">Metas</h1>
+          <h1 className="font-serif text-2xl md:text-3xl font-semibold">Metas</h1>
           <p className="text-sm text-muted-foreground">Economize para objetivos ou controle o teto de gasto por categoria</p>
         </div>
         <Button onClick={() => setModal({ open: true })}>

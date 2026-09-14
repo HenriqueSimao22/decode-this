@@ -117,7 +117,7 @@ function WorkspacePage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="font-serif text-3xl font-semibold">Workspace</h1>
+        <h1 className="font-serif text-2xl md:text-3xl font-semibold">Workspace</h1>
         <p className="text-sm text-muted-foreground">Gerencie contas individuais e conjuntas</p>
       </header>
 

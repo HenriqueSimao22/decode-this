@@ -97,7 +97,7 @@ function TransacoesPage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-serif text-3xl font-semibold">Receitas e despesas</h1>
+          <h1 className="font-serif text-2xl md:text-3xl font-semibold">Receitas e despesas</h1>
           <p className="text-sm text-muted-foreground">Todas as suas movimentações</p>
         </div>
         <Button onClick={() => setModal({ open: true })}>+ Nova transação</Button>
@@ -153,51 +153,55 @@ function TransacoesPage() {
           const isReceita = t.tipo === "receita";
           const autor = membrosMap.get((t as any).criado_por);
           return (
-            <div key={t.id} className="p-4 flex items-center gap-4">
-              <div
-                className="w-2 h-10 rounded"
-                style={{ background: isReceita ? "var(--color-receita)" : "var(--color-despesa)" }}
-              />
-              <AuthorBadge autor={autor} />
-              <div className="flex-1 min-w-0">
-                <div className="font-medium truncate">{t.descricao}</div>
-                <div className="text-xs text-muted-foreground truncate">
-                  {new Date(t.data + "T12:00").toLocaleDateString("pt-BR")} · {cat}
-                  {autor && <> · por {autor.nome}</>}
+            <div key={t.id} className="p-4 flex flex-wrap items-center gap-x-4 gap-y-2 md:flex-nowrap">
+              <div className="flex items-center gap-3 min-w-0 basis-full md:basis-auto md:flex-1">
+                <div
+                  className="w-1.5 h-9 md:w-2 md:h-10 rounded shrink-0"
+                  style={{ background: isReceita ? "var(--color-receita)" : "var(--color-despesa)" }}
+                />
+                <AuthorBadge autor={autor} />
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate">{t.descricao}</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {new Date(t.data + "T12:00").toLocaleDateString("pt-BR")} · {cat}
+                    {autor && <> · por {autor.nome}</>}
+                  </div>
                 </div>
               </div>
-              <div className={`font-mono font-semibold ${isReceita ? "text-[color:var(--color-receita)]" : "text-[color:var(--color-despesa)]"}`}>
-                {isReceita ? "+ " : "− "}{formatBRL(Number(t.valor))}
+              <div className="flex items-center gap-1 ml-auto">
+                <div className={`font-mono font-semibold text-sm md:text-base ${isReceita ? "text-[color:var(--color-receita)]" : "text-[color:var(--color-despesa)]"}`}>
+                  {isReceita ? "+ " : "− "}{formatBRL(Number(t.valor))}
+                </div>
+                <button
+                  onClick={() =>
+                    setModal({
+                      open: true,
+                      inicial: {
+                        id: t.id,
+                        tipo: t.tipo as "receita" | "despesa",
+                        descricao: t.descricao,
+                        valor: Number(t.valor),
+                        categoria_id: t.categoria_id,
+                        data: t.data,
+                        observacao: t.observacao,
+                      },
+                    })
+                  }
+                  className="p-2 hover:bg-accent rounded"
+                  aria-label="Editar"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm("Excluir esta transação?")) del.mutate(t.id);
+                  }}
+                  className="p-2 hover:bg-destructive/10 text-destructive rounded"
+                  aria-label="Excluir"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                onClick={() =>
-                  setModal({
-                    open: true,
-                    inicial: {
-                      id: t.id,
-                      tipo: t.tipo as "receita" | "despesa",
-                      descricao: t.descricao,
-                      valor: Number(t.valor),
-                      categoria_id: t.categoria_id,
-                      data: t.data,
-                      observacao: t.observacao,
-                    },
-                  })
-                }
-                className="p-2 hover:bg-accent rounded"
-                aria-label="Editar"
-              >
-                <Pencil className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => {
-                  if (confirm("Excluir esta transação?")) del.mutate(t.id);
-                }}
-                className="p-2 hover:bg-destructive/10 text-destructive rounded"
-                aria-label="Excluir"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
             </div>
           );
         })}
