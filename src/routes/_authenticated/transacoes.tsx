@@ -168,7 +168,7 @@ function TransacoesPage() {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-1 ml-auto">
+              <div className="flex items-center gap-2.5 ml-auto">
                 <div className={`font-mono font-semibold text-sm md:text-base ${isReceita ? "text-[color:var(--color-receita)]" : "text-[color:var(--color-despesa)]"}`}>
                   {isReceita ? "+ " : "− "}{formatBRL(Number(t.valor))}
                 </div>

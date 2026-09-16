@@ -9,7 +9,7 @@ import { resumoMetas } from "@/lib/metas.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { CreditCard, Target } from "lucide-react";
+import { CreditCard, Target, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { getBanco } from "@/lib/bancos";
 import { TransacaoModal, formatBRL } from "@/components/livrocaixa/transacao-modal";
 import { GraficoReceitasDespesas, GraficoDespesasCategoria } from "@/components/livrocaixa/graficos-dashboard";
@@ -69,25 +69,35 @@ function Dashboard() {
         </div>
       </header>
 
-      {/* Mobile: um único cartão compacto com as 3 métricas lado a lado */}
-      <Card className="p-4 grid grid-cols-3 divide-x divide-border md:hidden">
-        <div className="text-center px-1">
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Saldo</p>
-          <p className={`font-mono text-base font-bold mt-1 ${saldo >= 0 ? "text-[color:var(--color-receita)]" : "text-[color:var(--color-despesa)]"}`}>
-            {formatBRL(saldo)}
-          </p>
-        </div>
-        <div className="text-center px-1">
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Receitas</p>
-          <p className="font-mono text-base font-bold mt-1 text-[color:var(--color-receita)]">
-            {formatBRL(agregados.receitasMes)}
-          </p>
-        </div>
-        <div className="text-center px-1">
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Despesas</p>
-          <p className="font-mono text-base font-bold mt-1 text-[color:var(--color-despesa)]">
-            {formatBRL(agregados.despesasMes)}
-          </p>
+      {/* Mobile: saldo em destaque + receitas/despesas lado a lado, sem espremer números */}
+      <Card className="p-5 md:hidden">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">Saldo do mês</p>
+        <p className={`font-mono text-3xl font-bold mt-1 ${saldo >= 0 ? "text-[color:var(--color-receita)]" : "text-[color:var(--color-despesa)]"}`}>
+          {formatBRL(saldo)}
+        </p>
+        <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-border">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: "color-mix(in oklch, var(--color-receita) 15%, transparent)" }}>
+              <ArrowUpRight className="w-3.5 h-3.5 text-[color:var(--color-receita)]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Receitas</p>
+              <p className="font-mono text-sm font-semibold text-[color:var(--color-receita)] truncate">
+                {formatBRL(agregados.receitasMes)}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: "color-mix(in oklch, var(--color-despesa) 15%, transparent)" }}>
+              <ArrowDownRight className="w-3.5 h-3.5 text-[color:var(--color-despesa)]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Despesas</p>
+              <p className="font-mono text-sm font-semibold text-[color:var(--color-despesa)] truncate">
+                {formatBRL(agregados.despesasMes)}
+              </p>
+            </div>
+          </div>
         </div>
       </Card>
 

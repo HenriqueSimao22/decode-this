@@ -340,7 +340,7 @@ export function CartaoDetalhe({ id }: { id: string }) {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-1 ml-auto">
+              <div className="flex items-center gap-2.5 ml-auto">
                 <div className="font-mono font-semibold text-sm sm:text-base text-[color:var(--color-despesa)]">{formatBRL(Number(l.valor_parcela))}</div>
                 {l.parcelas_total > 1 && l.parcela_atual < l.parcelas_total && (
                   <button

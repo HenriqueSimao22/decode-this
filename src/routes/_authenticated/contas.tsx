@@ -236,7 +236,7 @@ function ContasPage() {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-1 ml-auto">
+              <div className="flex items-center gap-2.5 ml-auto">
                 <div className={`font-mono font-semibold text-sm md:text-base ${pago ? "opacity-60" : ""}`} style={{ color: cor }}>
                   {isPagar ? "− " : "+ "}{formatBRL(Number(r.valor))}
                 </div>
