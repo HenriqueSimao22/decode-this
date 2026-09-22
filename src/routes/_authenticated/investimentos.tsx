@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listarInvestimentos, excluirInvestimento, atualizarValorInvestimento } from "@/lib/investimentos.functions";
+import { listarInvestimentos, excluirInvestimento, atualizarValorInvestimento, atualizarCotacoes } from "@/lib/investimentos.functions";
 import { InvestimentoModal, TIPOS_INVESTIMENTO, type InvestimentoEdit } from "@/components/livrocaixa/investimento-modal";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,25 @@ function InvestimentosPage() {
   const qc = useQueryClient();
   const listFn = useServerFn(listarInvestimentos);
   const delFn = useServerFn(excluirInvestimento);
+  const atualizarCotacoesFn = useServerFn(atualizarCotacoes);
   const { data: itens } = useQuery({ queryKey: ["investimentos"], queryFn: () => listFn() });
+
+  const atualizarCotacoesMut = useMutation({
+    mutationFn: () => atualizarCotacoesFn(),
+    onSuccess: (r: any) => {
+      qc.invalidateQueries({ queryKey: ["investimentos"] });
+      if (r.total === 0) {
+        toast.info("Nenhuma ação, FII ou cripto com ticker para atualizar");
+      } else if (r.atualizados === 0) {
+        toast.error("Não consegui atualizar nenhuma cotação. Confira o ticker ou o token da brapi.dev");
+      } else if (r.falhas.length > 0) {
+        toast.warning(`${r.atualizados} de ${r.total} cotações atualizadas. Sem cotação para: ${r.falhas.join(", ")}`);
+      } else {
+        toast.success(`${r.atualizados} cotação(ões) atualizada(s) agora`);
+      }
+    },
+    onError: () => toast.error("Erro ao atualizar cotações"),
+  });
 
   const [modal, setModal] = useState<{ open: boolean; inicial?: InvestimentoEdit }>({ open: false });
   const [filtro, setFiltro] = useState<string>("todos");
@@ -56,9 +74,19 @@ function InvestimentosPage() {
           <h1 className="font-serif text-2xl md:text-3xl font-semibold">Investimentos</h1>
           <p className="text-sm text-muted-foreground">Ações, fundos imobiliários, criptomoedas e mais — tudo em um lugar</p>
         </div>
-        <Button onClick={() => setModal({ open: true })}>
-          <Plus className="w-4 h-4 mr-1" /> Novo investimento
-        </Button>
+        <div className="grid grid-cols-2 gap-2 w-full md:flex md:w-auto">
+          <Button
+            variant="outline"
+            onClick={() => atualizarCotacoesMut.mutate()}
+            disabled={atualizarCotacoesMut.isPending}
+          >
+            <RefreshCw className={`w-4 h-4 mr-1 ${atualizarCotacoesMut.isPending ? "animate-spin" : ""}`} />
+            {atualizarCotacoesMut.isPending ? "Atualizando..." : "Atualizar cotações"}
+          </Button>
+          <Button onClick={() => setModal({ open: true })}>
+            <Plus className="w-4 h-4 mr-1" /> Novo investimento
+          </Button>
+        </div>
       </header>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -148,7 +176,10 @@ function InvestimentosPage() {
                   <div className="text-right">
                     <div className="font-mono font-semibold text-sm sm:text-base">{formatBRL(i.valor_atual)}</div>
                     <button onClick={() => setEditandoValor(i.id)} className="text-[10px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-                      <RefreshCw className="w-2.5 h-2.5" /> atualizar valor
+                      <RefreshCw className="w-2.5 h-2.5" />
+                      {i.atualizado_em
+                        ? `atualizado ${new Date(i.atualizado_em).toLocaleDateString("pt-BR")}`
+                        : "atualizar valor"}
                     </button>
                   </div>
                 )}

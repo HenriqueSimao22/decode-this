@@ -102,3 +102,94 @@ export const arquivarInvestimento = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+// Mapa de tickers comuns de cripto -> id usado pela CoinGecko (mesma lista da
+// Edge Function "atualizar-cotacoes", que roda o mesmo processo 1x por dia).
+const CRIPTO_IDS: Record<string, string> = {
+  BTC: "bitcoin", ETH: "ethereum", SOL: "solana", ADA: "cardano", BNB: "binancecoin",
+  XRP: "ripple", DOGE: "dogecoin", LTC: "litecoin", USDT: "tether", USDC: "usd-coin",
+  MATIC: "matic-network", POL: "matic-network", AVAX: "avalanche-2", DOT: "polkadot",
+  LINK: "chainlink", TRX: "tron", SHIB: "shiba-inu", ATOM: "cosmos", UNI: "uniswap",
+  XLM: "stellar", NEAR: "near", BCH: "bitcoin-cash", ETC: "ethereum-classic",
+};
+
+async function buscarPrecoAcaoFii(ticker: string, token: string): Promise<number | null> {
+  try {
+    const r = await fetch(`https://brapi.dev/api/quote/${encodeURIComponent(ticker)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const j: any = await r.json().catch(() => null);
+    const preco = j?.results?.[0]?.regularMarketPrice;
+    return typeof preco === "number" && preco > 0 ? preco : null;
+  } catch {
+    return null;
+  }
+}
+
+async function buscarPrecosCripto(tickers: string[]): Promise<Map<string, number>> {
+  const resultado = new Map<string, number>();
+  const ids = [...new Set(tickers.map((t) => CRIPTO_IDS[t.toUpperCase()]).filter(Boolean))];
+  if (ids.length === 0) return resultado;
+  try {
+    const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(",")}&vs_currencies=brl`);
+    const j: any = await r.json().catch(() => ({}));
+    for (const ticker of tickers) {
+      const id = CRIPTO_IDS[ticker.toUpperCase()];
+      const preco = id ? j?.[id]?.brl : undefined;
+      if (typeof preco === "number" && preco > 0) resultado.set(ticker.toUpperCase(), preco);
+    }
+  } catch {
+    /* mantém o mapa como está (sem essas cotações) */
+  }
+  return resultado;
+}
+
+// Atualiza manualmente (botão "Atualizar cotações") as ações, FIIs e criptos
+// do workspace atual. O mesmo processo também roda automaticamente 1x por
+// dia via a Edge Function "atualizar-cotacoes" (ver supabase/functions).
+export const atualizarCotacoes = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const wid = await getActiveWorkspaceId(context.supabase, context.userId);
+    const { data: itens, error } = await context.supabase
+      .from("investimentos")
+      .select("id, tipo, ticker")
+      .eq("workspace_id", wid)
+      .eq("arquivado", false)
+      .not("ticker", "is", null)
+      .in("tipo", ["acao", "fii", "cripto"]);
+    if (error) throw new Error(error.message);
+    if (!itens || itens.length === 0) return { atualizados: 0, falhas: [] as string[], total: 0 };
+
+    const BRAPI_TOKEN = process.env.BRAPI_TOKEN;
+    const falhas: string[] = [];
+    let atualizados = 0;
+
+    const cripto = itens.filter((i: any) => i.tipo === "cripto");
+    const precosCripto = await buscarPrecosCripto(cripto.map((i: any) => i.ticker as string));
+
+    for (const item of itens as any[]) {
+      const ticker = (item.ticker as string).toUpperCase();
+      let preco: number | null = null;
+
+      if (item.tipo === "cripto") {
+        preco = precosCripto.get(ticker) ?? null;
+      } else if (BRAPI_TOKEN) {
+        preco = await buscarPrecoAcaoFii(ticker, BRAPI_TOKEN);
+        await new Promise((res) => setTimeout(res, 150)); // respeita o rate-limit do plano gratuito
+      }
+
+      if (preco == null) {
+        falhas.push(ticker);
+        continue;
+      }
+      const { error: upErr } = await context.supabase
+        .from("investimentos")
+        .update({ valor_atual_unitario: preco, atualizado_em: new Date().toISOString() })
+        .eq("id", item.id);
+      if (!upErr) atualizados++;
+      else falhas.push(ticker);
+    }
+
+    return { atualizados, falhas: [...new Set(falhas)], total: itens.length };
+  });
