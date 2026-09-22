@@ -593,6 +593,7 @@ export type Database = {
           criado_por: string | null
           data: string
           descricao: string
+          fatura_id: string | null
           id: string
           observacao: string | null
           tipo: string
@@ -607,6 +608,7 @@ export type Database = {
           criado_por?: string | null
           data: string
           descricao: string
+          fatura_id?: string | null
           id?: string
           observacao?: string | null
           tipo: string
@@ -621,6 +623,7 @@ export type Database = {
           criado_por?: string | null
           data?: string
           descricao?: string
+          fatura_id?: string | null
           id?: string
           observacao?: string | null
           tipo?: string
@@ -635,6 +638,13 @@ export type Database = {
             columns: ["categoria_id"]
             isOneToOne: false
             referencedRelation: "categorias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transacoes_fatura_id_fkey"
+            columns: ["fatura_id"]
+            isOneToOne: false
+            referencedRelation: "faturas"
             referencedColumns: ["id"]
           },
           {

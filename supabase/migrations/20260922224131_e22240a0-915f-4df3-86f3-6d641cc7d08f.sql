@@ -1,0 +1,2 @@
+ALTER TABLE public.transacoes ADD COLUMN IF NOT EXISTS fatura_id uuid REFERENCES public.faturas(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_transacoes_fatura ON public.transacoes(fatura_id);
