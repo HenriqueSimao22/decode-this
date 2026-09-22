@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listarInvestimentos, excluirInvestimento, atualizarValorInvestimento, atualizarCotacoes } from "@/lib/investimentos.functions";
+import { listarInvestimentos, excluirInvestimento, atualizarValorInvestimento } from "@/lib/investimentos.functions";
+import { buscarCotacoes } from "@/lib/cotacoes-client";
 import { InvestimentoModal, TIPOS_INVESTIMENTO, type InvestimentoEdit } from "@/components/livrocaixa/investimento-modal";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { formatBRL } from "@/components/livrocaixa/transacao-modal";
 import { Plus, Pencil, Trash2, TrendingUp, RefreshCw, Check, X, Wallet } from "lucide-react";
 import { toast } from "sonner";
+
+const HORAS_PARA_AUTO_ATUALIZAR = 20;
 
 export const Route = createFileRoute("/_authenticated/investimentos")({
   head: () => ({ meta: [{ title: "Investimentos — Livro Caixa" }] }),
@@ -21,11 +24,17 @@ function InvestimentosPage() {
   const qc = useQueryClient();
   const listFn = useServerFn(listarInvestimentos);
   const delFn = useServerFn(excluirInvestimento);
-  const atualizarCotacoesFn = useServerFn(atualizarCotacoes);
+  const atualizarValorFn = useServerFn(atualizarValorInvestimento);
   const { data: itens } = useQuery({ queryKey: ["investimentos"], queryFn: () => listFn() });
+  const autoDisparado = useRef(false);
 
   const atualizarCotacoesMut = useMutation({
-    mutationFn: () => atualizarCotacoesFn(),
+    mutationFn: async () => {
+      const alvos = (itens ?? []).map((i: any) => ({ id: i.id, tipo: i.tipo, ticker: i.ticker }));
+      return buscarCotacoes(alvos, async (id, preco) => {
+        await atualizarValorFn({ data: { id, valor_atual_unitario: preco } });
+      });
+    },
     onSuccess: (r: any) => {
       qc.invalidateQueries({ queryKey: ["investimentos"] });
       if (r.total === 0) {
@@ -40,6 +49,27 @@ function InvestimentosPage() {
     },
     onError: () => toast.error("Erro ao atualizar cotações"),
   });
+
+  // "Automático": ao abrir a página, se a cotação mais antiga entre os ativos
+  // rastreáveis (ação/FII/cripto) tiver mais de ~20h (ou nunca foi buscada),
+  // atualiza sozinho em segundo plano — sem precisar clicar no botão. Como
+  // este projeto não permite um agendamento de verdade rodando de madrugada,
+  // isso cobre o caso comum: quem abre o app já vê os valores frescos do dia.
+  useEffect(() => {
+    if (autoDisparado.current || !itens) return;
+    const rastreaveis = itens.filter((i: any) => i.ticker && ["acao", "fii", "cripto"].includes(i.tipo));
+    if (rastreaveis.length === 0) return;
+    const agora = Date.now();
+    const precisaAtualizar = rastreaveis.some((i: any) => {
+      if (!i.atualizado_em) return true;
+      const horas = (agora - new Date(i.atualizado_em).getTime()) / 3_600_000;
+      return horas >= HORAS_PARA_AUTO_ATUALIZAR;
+    });
+    if (precisaAtualizar) {
+      autoDisparado.current = true;
+      atualizarCotacoesMut.mutate();
+    }
+  }, [itens]);
 
   const [modal, setModal] = useState<{ open: boolean; inicial?: InvestimentoEdit }>({ open: false });
   const [filtro, setFiltro] = useState<string>("todos");

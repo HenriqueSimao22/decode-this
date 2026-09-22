@@ -102,6 +102,7 @@ export const arquivarInvestimento = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+<<<<<<< HEAD
 
 // Atualiza manualmente (botão "Atualizar cotações") as ações, FIIs e criptos
 // do workspace atual, buscando preços em brapi.dev / CoinGecko. O mesmo
@@ -114,3 +115,5 @@ export const atualizarCotacoes = createServerFn({ method: "POST" })
     const { atualizarCotacoesDe } = await import("./cotacoes.server");
     return await atualizarCotacoesDe(wid);
   });
+=======
+>>>>>>> 95789ae (Atualiza)
