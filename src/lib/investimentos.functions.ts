@@ -104,18 +104,13 @@ export const arquivarInvestimento = createServerFn({ method: "POST" })
   });
 
 // Atualiza manualmente (botão "Atualizar cotações") as ações, FIIs e criptos
-// do workspace atual. A busca de preço em si (brapi.dev / CoinGecko) acontece
-// dentro da Edge Function "atualizar-cotacoes" — é ela que enxerga o secret
-// BRAPI_TOKEN configurado em Cloud → Secrets (o servidor do app não tem
-// acesso a esse secret, só as Edge Functions têm). O mesmo processo também
-// roda automaticamente 1x por dia, agendado via pg_cron.
+// do workspace atual, buscando preços em brapi.dev / CoinGecko. O mesmo
+// processo roda automaticamente nos dias úteis às 19h (Brasília) pelo
+// agendamento que chama /api/public/hooks/atualizar-cotacoes.
 export const atualizarCotacoes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const wid = await getActiveWorkspaceId(context.supabase, context.userId);
-    const { data, error } = await context.supabase.functions.invoke("atualizar-cotacoes", {
-      body: { workspace_id: wid },
-    });
-    if (error) throw new Error(error.message ?? "Erro ao chamar a função de cotações");
-    return data as { atualizados: number; falhas: string[]; total: number };
+    const { atualizarCotacoesDe } = await import("./cotacoes.server");
+    return await atualizarCotacoesDe(wid);
   });
