@@ -23,6 +23,7 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedConviteTokenRouteImport } from './routes/_authenticated/convite.$token'
 import { Route as AuthenticatedCartoesTodosRouteImport } from './routes/_authenticated/cartoes.todos'
 import { Route as AuthenticatedCartoesIdRouteImport } from './routes/_authenticated/cartoes.$id'
+import { Route as ApiPublicHooksAtualizarCotacoesRouteImport } from './routes/api/public/hooks/atualizar-cotacoes'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -97,6 +98,12 @@ const AuthenticatedCartoesIdRoute = AuthenticatedCartoesIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => AuthenticatedCartoesRoute,
 } as any)
+const ApiPublicHooksAtualizarCotacoesRoute =
+  ApiPublicHooksAtualizarCotacoesRouteImport.update({
+    id: '/api/public/hooks/atualizar-cotacoes',
+    path: '/api/public/hooks/atualizar-cotacoes',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -112,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/cartoes/$id': typeof AuthenticatedCartoesIdRoute
   '/cartoes/todos': typeof AuthenticatedCartoesTodosRoute
   '/convite/$token': typeof AuthenticatedConviteTokenRoute
+  '/api/public/hooks/atualizar-cotacoes': typeof ApiPublicHooksAtualizarCotacoesRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -127,6 +135,7 @@ export interface FileRoutesByTo {
   '/cartoes/$id': typeof AuthenticatedCartoesIdRoute
   '/cartoes/todos': typeof AuthenticatedCartoesTodosRoute
   '/convite/$token': typeof AuthenticatedConviteTokenRoute
+  '/api/public/hooks/atualizar-cotacoes': typeof ApiPublicHooksAtualizarCotacoesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -144,6 +153,7 @@ export interface FileRoutesById {
   '/_authenticated/cartoes/$id': typeof AuthenticatedCartoesIdRoute
   '/_authenticated/cartoes/todos': typeof AuthenticatedCartoesTodosRoute
   '/_authenticated/convite/$token': typeof AuthenticatedConviteTokenRoute
+  '/api/public/hooks/atualizar-cotacoes': typeof ApiPublicHooksAtualizarCotacoesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/cartoes/$id'
     | '/cartoes/todos'
     | '/convite/$token'
+    | '/api/public/hooks/atualizar-cotacoes'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/cartoes/$id'
     | '/cartoes/todos'
     | '/convite/$token'
+    | '/api/public/hooks/atualizar-cotacoes'
   id:
     | '__root__'
     | '/_authenticated'
@@ -192,11 +204,13 @@ export interface FileRouteTypes {
     | '/_authenticated/cartoes/$id'
     | '/_authenticated/cartoes/todos'
     | '/_authenticated/convite/$token'
+    | '/api/public/hooks/atualizar-cotacoes'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiPublicHooksAtualizarCotacoesRoute: typeof ApiPublicHooksAtualizarCotacoesRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -299,6 +313,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCartoesIdRouteImport
       parentRoute: typeof AuthenticatedCartoesRoute
     }
+    '/api/public/hooks/atualizar-cotacoes': {
+      id: '/api/public/hooks/atualizar-cotacoes'
+      path: '/api/public/hooks/atualizar-cotacoes'
+      fullPath: '/api/public/hooks/atualizar-cotacoes'
+      preLoaderRoute: typeof ApiPublicHooksAtualizarCotacoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -347,6 +368,7 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiPublicHooksAtualizarCotacoesRoute: ApiPublicHooksAtualizarCotacoesRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
