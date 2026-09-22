@@ -21,6 +21,7 @@ import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authen
 import { Route as AuthenticatedCartoesRouteImport } from './routes/_authenticated/cartoes'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedConviteTokenRouteImport } from './routes/_authenticated/convite.$token'
+import { Route as AuthenticatedCartoesTodosRouteImport } from './routes/_authenticated/cartoes.todos'
 import { Route as AuthenticatedCartoesIdRouteImport } from './routes/_authenticated/cartoes.$id'
 
 const AuthRoute = AuthRouteImport.update({
@@ -85,6 +86,12 @@ const AuthenticatedConviteTokenRoute =
     path: '/convite/$token',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCartoesTodosRoute =
+  AuthenticatedCartoesTodosRouteImport.update({
+    id: '/todos',
+    path: '/todos',
+    getParentRoute: () => AuthenticatedCartoesRoute,
+  } as any)
 const AuthenticatedCartoesIdRoute = AuthenticatedCartoesIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -103,6 +110,7 @@ export interface FileRoutesByFullPath {
   '/transacoes': typeof AuthenticatedTransacoesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/cartoes/$id': typeof AuthenticatedCartoesIdRoute
+  '/cartoes/todos': typeof AuthenticatedCartoesTodosRoute
   '/convite/$token': typeof AuthenticatedConviteTokenRoute
 }
 export interface FileRoutesByTo {
@@ -117,6 +125,7 @@ export interface FileRoutesByTo {
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/': typeof AuthenticatedIndexRoute
   '/cartoes/$id': typeof AuthenticatedCartoesIdRoute
+  '/cartoes/todos': typeof AuthenticatedCartoesTodosRoute
   '/convite/$token': typeof AuthenticatedConviteTokenRoute
 }
 export interface FileRoutesById {
@@ -133,6 +142,7 @@ export interface FileRoutesById {
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/cartoes/$id': typeof AuthenticatedCartoesIdRoute
+  '/_authenticated/cartoes/todos': typeof AuthenticatedCartoesTodosRoute
   '/_authenticated/convite/$token': typeof AuthenticatedConviteTokenRoute
 }
 export interface FileRouteTypes {
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/transacoes'
     | '/workspace'
     | '/cartoes/$id'
+    | '/cartoes/todos'
     | '/convite/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -163,6 +174,7 @@ export interface FileRouteTypes {
     | '/workspace'
     | '/'
     | '/cartoes/$id'
+    | '/cartoes/todos'
     | '/convite/$token'
   id:
     | '__root__'
@@ -178,6 +190,7 @@ export interface FileRouteTypes {
     | '/_authenticated/workspace'
     | '/_authenticated/'
     | '/_authenticated/cartoes/$id'
+    | '/_authenticated/cartoes/todos'
     | '/_authenticated/convite/$token'
   fileRoutesById: FileRoutesById
 }
@@ -272,6 +285,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConviteTokenRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/cartoes/todos': {
+      id: '/_authenticated/cartoes/todos'
+      path: '/todos'
+      fullPath: '/cartoes/todos'
+      preLoaderRoute: typeof AuthenticatedCartoesTodosRouteImport
+      parentRoute: typeof AuthenticatedCartoesRoute
+    }
     '/_authenticated/cartoes/$id': {
       id: '/_authenticated/cartoes/$id'
       path: '/$id'
@@ -284,10 +304,12 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedCartoesRouteChildren {
   AuthenticatedCartoesIdRoute: typeof AuthenticatedCartoesIdRoute
+  AuthenticatedCartoesTodosRoute: typeof AuthenticatedCartoesTodosRoute
 }
 
 const AuthenticatedCartoesRouteChildren: AuthenticatedCartoesRouteChildren = {
   AuthenticatedCartoesIdRoute: AuthenticatedCartoesIdRoute,
+  AuthenticatedCartoesTodosRoute: AuthenticatedCartoesTodosRoute,
 }
 
 const AuthenticatedCartoesRouteWithChildren =
