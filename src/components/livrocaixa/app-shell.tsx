@@ -6,7 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getPerfil } from "@/lib/livrocaixa.functions";
 import { souAdmin } from "@/lib/admin.functions";
 import { listarWorkspaces, trocarWorkspaceAtivo } from "@/lib/workspaces.functions";
-import { LogOut, LayoutDashboard, Wallet, Settings, Shield, CalendarClock, Users, Check, ChevronDown, CreditCard, Target, TrendingUp, PanelLeftClose, PanelLeftOpen, MoreHorizontal } from "lucide-react";
+import { LogOut, LayoutDashboard, Wallet, Settings, Shield, CalendarClock, Users, Check, ChevronDown, CreditCard, Target, TrendingUp, PanelLeftClose, PanelLeftOpen, MoreHorizontal, PiggyBank } from "lucide-react";
 import { LivroCaixaLogo } from "./logo";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -69,6 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     { to: "/contas", label: "Contas", icon: CalendarClock },
     { to: "/cartoes", label: "Cartões", icon: CreditCard },
     { to: "/metas", label: "Metas", icon: Target },
+    { to: "/planejamento", label: "Planejamento", icon: PiggyBank },
     { to: "/investimentos", label: "Investimentos", icon: TrendingUp },
     { to: "/workspace", label: "Workspace", icon: Users },
     { to: "/configuracoes", label: "Configurações", icon: Settings },
